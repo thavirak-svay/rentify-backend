@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { log } from "../middleware/logger";
 
 export const envSchema = z.object({
   SUPABASE_URL: z.string().url(),
@@ -18,12 +19,13 @@ export const envSchema = z.object({
 export type Env = z.infer<typeof envSchema>;
 export type Bindings = Env;
 
-export function getEnv(c: { env: Bindings }): Env {
+export function getEnv(c: { env: Env }): Env {
   const parsed = envSchema.safeParse(c.env);
 
   if (!parsed.success) {
-    console.error("❌ Invalid environment variables:", parsed.error.flatten().fieldErrors);
-    throw new Error("Invalid environment variables");
+    const errors = parsed.error.flatten().fieldErrors;
+    log.error({ errors }, "Invalid environment variables");
+    throw new Error(`Invalid environment variables: ${JSON.stringify(errors)}`);
   }
 
   return parsed.data;

@@ -1,38 +1,33 @@
+import { Scalar } from "@scalar/hono-api-reference";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
-import { createSupabaseClient, createSupabaseAdminClient, type Env } from "./config/supabase";
-import { getEnv } from "./config/env";
+import { openAPIRouteHandler } from "hono-openapi";
+import type { Env } from "./config/env";
+import { createSupabaseAdminClient, createSupabaseClient } from "./config/supabase";
 import { errorHandler } from "./middleware/error-handler";
+import { structuredLogger } from "./middleware/logger";
 import { apiRateLimit } from "./middleware/rate-limit";
-import listingRoutes from "./routes/listings.routes";
-import searchRoutes from "./routes/search.routes";
-import mediaRoutes from "./routes/media.routes";
 import bookingRoutes from "./routes/bookings.routes";
-import paymentRoutes from "./routes/payments.routes";
-import threadRoutes from "./routes/threads.routes";
-import reviewRoutes from "./routes/reviews.routes";
-import notificationRoutes from "./routes/notifications.routes";
-import userRoutes from "./routes/users.routes";
 import categoryRoutes from "./routes/categories.routes";
-import openApiRoutes from "./routes/openapi.routes";
-
-type Variables = {
-  env: Env;
-  supabase: ReturnType<typeof createSupabaseClient>;
-  supabaseAdmin: ReturnType<typeof createSupabaseAdminClient>;
-};
+import listingRoutes from "./routes/listings.routes";
+import mediaRoutes from "./routes/media.routes";
+import notificationRoutes from "./routes/notifications.routes";
+import paymentRoutes from "./routes/payments.routes";
+import reviewRoutes from "./routes/reviews.routes";
+import searchRoutes from "./routes/search.routes";
+import threadRoutes from "./routes/threads.routes";
+import userRoutes from "./routes/users.routes";
+import type { Variables } from "./types/variables";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use("*", cors());
-app.use("*", logger());
+app.use("*", structuredLogger());
 
 app.use("*", async (c, next) => {
-  const env = getEnv(c);
-  c.set("env", env);
-  c.set("supabase", createSupabaseClient(env));
-  c.set("supabaseAdmin", createSupabaseAdminClient(env));
+  c.set("env", c.env as Env);
+  c.set("supabase", createSupabaseClient(c.env as Env));
+  c.set("supabaseAdmin", createSupabaseAdminClient(c.env as Env));
   await next();
 });
 
@@ -48,7 +43,6 @@ app.get("/health", (c) => {
   });
 });
 
-app.route("/", openApiRoutes);
 app.route("/v1/listings", listingRoutes);
 app.route("/v1/search", searchRoutes);
 app.route("/v1/media", mediaRoutes);
@@ -59,5 +53,45 @@ app.route("/v1/reviews", reviewRoutes);
 app.route("/v1/notifications", notificationRoutes);
 app.route("/v1/users", userRoutes);
 app.route("/v1/categories", categoryRoutes);
+
+app.get(
+  "/openapi.json",
+  openAPIRouteHandler(app, {
+    documentation: {
+      info: {
+        title: "Rentify API",
+        version: "1.0.0",
+        description: "Cambodia-first rental marketplace API. All endpoints implemented in Hono.",
+        contact: {
+          name: "Rentify Support",
+          email: "support@rentify.com",
+        },
+      },
+      servers: [
+        {
+          url: "http://localhost:8787",
+          description: "Development",
+        },
+        {
+          url: "https://rentify-api.thaavirak.workers.dev",
+          description: "Production",
+        },
+        {
+          url: "https://api.rentify.com",
+          description: "Production (Custom Domain)",
+        },
+      ],
+    },
+  })
+);
+
+app.get(
+  "/docs",
+  Scalar({
+    url: "/openapi.json",
+    theme: "purple",
+    pageTitle: "Rentify API Reference",
+  })
+);
 
 export default app;

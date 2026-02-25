@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ForbiddenError, NotFoundError } from "../lib/errors";
-import type { MessageThread, Message } from "../types/database";
+import { log } from "../middleware/logger";
+import type { Message, MessageThread } from "../types/database";
 
 export interface CreateThreadInput {
   listing_id?: string;
@@ -100,7 +101,9 @@ export async function sendMessage(
   }
 
   const otherParticipants = thread.participant_ids.filter((id) => id !== senderId);
-  notifyParticipants(supabaseAdmin, otherParticipants, senderId, message).catch(console.error);
+  notifyParticipants(supabaseAdmin, otherParticipants, senderId, message).catch((err) =>
+    log.error({ err, threadId }, "Failed to send message notifications")
+  );
 
   return message;
 }

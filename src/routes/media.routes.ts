@@ -1,55 +1,94 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { describeRoute, validator } from "hono-openapi";
 import { z } from "zod";
-import { requireAuth } from "../middleware/auth";
+import type { Env } from "../config/env";
+import {
+  bearerAuth,
+  dataResponse,
+  jsonContent,
+  successResponse,
+  uuidParam,
+} from "../lib/openapi-helpers";
+import { UploadUrlResponseSchema } from "../lib/schemas";
+import { optionalAuth } from "../middleware/optional-auth";
 import * as mediaService from "../services/media.service";
+import type { Variables } from "../types/variables";
 
-const media = new Hono();
+const media = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-const uploadUrlSchema = z.object({
-  file_name: z.string(),
-  content_type: z.string().optional(),
-});
-
-const confirmUploadSchema = z.object({
-  path: z.string(),
-  is_primary: z.boolean().optional(),
-});
-
-media.post("/upload-url", requireAuth, zValidator("json", uploadUrlSchema), async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const userId = c.get("userId");
-  const { file_name, content_type } = c.req.valid("json");
-
-  const result = await mediaService.createUploadUrl(supabaseAdmin, userId, file_name, content_type);
-
-  return c.json({ data: result });
-});
+media.use("*", optionalAuth);
 
 media.post(
-  "/:listingId/confirm",
-  requireAuth,
-  zValidator("json", confirmUploadSchema),
+  "/upload-url",
+  describeRoute({
+    tags: ["Media"],
+    summary: "Get signed upload URL",
+    security: bearerAuth,
+    responses: { 200: dataResponse(UploadUrlResponseSchema, "Upload URL created") },
+  }),
+  validator("json", z.object({ file_name: z.string(), content_type: z.string().optional() })),
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    const listingId = c.req.param("listingId");
-    const { path, is_primary } = c.req.valid("json");
+    if (!userId) throw new Error("Authentication required");
 
-    const result = await mediaService.confirmUpload(supabaseAdmin, userId, listingId, path, is_primary);
-
-    return c.json({ data: result });
+    const { file_name, content_type } = c.req.valid("json");
+    const data = await mediaService.createUploadUrl(supabaseAdmin, userId, file_name, content_type);
+    return c.json({ data });
   }
 );
 
-media.delete("/:id", requireAuth, async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const userId = c.get("userId");
-  const mediaId = c.req.param("id");
+media.post(
+  "/:listingId/confirm",
+  describeRoute({
+    tags: ["Media"],
+    summary: "Confirm media upload",
+    security: bearerAuth,
+    responses: {
+      200: jsonContent(
+        z.object({ data: z.object({ id: z.string().uuid(), url: z.string().url() }) }),
+        "Upload confirmed"
+      ),
+    },
+  }),
+  validator("param", z.object({ listingId: z.string().uuid() })),
+  validator("json", z.object({ path: z.string(), is_primary: z.boolean().optional() })),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-  await mediaService.deleteMedia(supabaseAdmin, userId, mediaId);
+    const { listingId } = c.req.valid("param");
+    const { path, is_primary } = c.req.valid("json");
+    const data = await mediaService.confirmUpload(
+      supabaseAdmin,
+      userId,
+      listingId,
+      path,
+      is_primary
+    );
+    return c.json({ data });
+  }
+);
 
-  return c.json({ success: true });
-});
+media.delete(
+  "/:id",
+  describeRoute({
+    tags: ["Media"],
+    summary: "Delete media",
+    security: bearerAuth,
+    responses: { 200: successResponse("Media deleted") },
+  }),
+  validator("param", uuidParam),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
+
+    const { id } = c.req.valid("param");
+    await mediaService.deleteMedia(supabaseAdmin, userId, id);
+    return c.json({ success: true });
+  }
+);
 
 export default media;

@@ -1,75 +1,147 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
-import { requireAuth } from "../middleware/auth";
+import { describeRoute, validator } from "hono-openapi";
+
+import { z } from "zod";
+import type { Env } from "../config/env";
+import {
+  bearerAuth,
+  dataArrayResponse,
+  dataResponse,
+  successResponse,
+  uuidParam,
+} from "../lib/openapi-helpers";
+import { ListingSchema, ListingWithMediaSchema } from "../lib/schemas";
+import { optionalAuth } from "../middleware/optional-auth";
 import * as listingService from "../services/listing.service";
-import { createListingSchema, updateListingSchema, listingIdSchema } from "../lib/validators";
+import type { Variables } from "../types/variables";
 
-const listings = new Hono();
+const listings = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-listings.post("/", requireAuth, zValidator("json", createListingSchema), async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const userId = c.get("userId");
-  const input = c.req.valid("json");
+listings.use("*", optionalAuth);
 
-  const listing = await listingService.createListing(supabaseAdmin, userId, input);
+import { createListingSchema } from "../lib/validators";
 
-  return c.json({ data: listing }, 201);
-});
-
-listings.get("/:id", zValidator("param", listingIdSchema), async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const { id } = c.req.valid("param");
-
-  const { listing, media } = await listingService.getListingWithMedia(supabaseAdmin, id);
-
-  return c.json({ data: { ...listing, media } });
-});
-
-listings.patch(
-  "/:id",
-  requireAuth,
-  zValidator("param", listingIdSchema),
-  zValidator("json", updateListingSchema),
+listings.post(
+  "/",
+  describeRoute({
+    tags: ["Listings"],
+    summary: "Create a new listing",
+    security: bearerAuth,
+    responses: { 201: dataResponse(ListingSchema, "Listing created successfully") },
+  }),
+  validator("json", createListingSchema),
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    const { id } = c.req.valid("param");
+    if (!userId) throw new Error("Authentication required");
+
     const input = c.req.valid("json");
-
-    const listing = await listingService.updateListing(supabaseAdmin, id, userId, input);
-
-    return c.json({ data: listing });
+    const data = await listingService.createListing(supabaseAdmin, userId, input);
+    return c.json({ data }, 201);
   }
 );
 
-listings.delete("/:id", requireAuth, zValidator("param", listingIdSchema), async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const userId = c.get("userId");
-  const { id } = c.req.valid("param");
+listings.get(
+  "/:id",
+  describeRoute({
+    tags: ["Listings"],
+    summary: "Get listing by ID",
+    responses: { 200: dataResponse(ListingWithMediaSchema, "Listing details") },
+  }),
+  validator("param", uuidParam),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const { id } = c.req.valid("param");
+    const { listing, media } = await listingService.getListingWithMedia(supabaseAdmin, id);
+    return c.json({ data: { ...listing, media } });
+  }
+);
 
-  await listingService.deleteListing(supabaseAdmin, id, userId);
+listings.patch(
+  "/:id",
+  describeRoute({
+    tags: ["Listings"],
+    summary: "Update a listing",
+    security: bearerAuth,
+    responses: { 200: dataResponse(ListingSchema, "Listing updated successfully") },
+  }),
+  validator("param", uuidParam),
+  validator("json", createListingSchema.partial()),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-  return c.json({ success: true });
-});
+    const { id } = c.req.valid("param");
+    const input = c.req.valid("json");
+    const data = await listingService.updateListing(supabaseAdmin, id, userId, input);
+    return c.json({ data });
+  }
+);
 
-listings.post("/:id/publish", requireAuth, zValidator("param", listingIdSchema), async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const userId = c.get("userId");
-  const { id } = c.req.valid("param");
+listings.delete(
+  "/:id",
+  describeRoute({
+    tags: ["Listings"],
+    summary: "Delete a listing",
+    security: bearerAuth,
+    responses: { 200: successResponse("Listing deleted successfully") },
+  }),
+  validator("param", uuidParam),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-  const listing = await listingService.publishListing(supabaseAdmin, id, userId);
+    const { id } = c.req.valid("param");
+    await listingService.deleteListing(supabaseAdmin, id, userId);
+    return c.json({ success: true });
+  }
+);
 
-  return c.json({ data: listing });
-});
+listings.post(
+  "/:id/publish",
+  describeRoute({
+    tags: ["Listings"],
+    summary: "Publish a listing",
+    security: bearerAuth,
+    responses: { 200: dataResponse(ListingSchema, "Listing published successfully") },
+  }),
+  validator("param", uuidParam),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-listings.get("/my/listings", requireAuth, async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const userId = c.get("userId");
-  const status = c.req.query("status");
+    const { id } = c.req.valid("param");
+    const data = await listingService.publishListing(supabaseAdmin, id, userId);
+    return c.json({ data });
+  }
+);
 
-  const listings = await listingService.getUserListings(supabaseAdmin, userId, status);
+listings.get(
+  "/my/listings",
+  describeRoute({
+    tags: ["Listings"],
+    summary: "Get current user's listings",
+    security: bearerAuth,
+    responses: { 200: dataArrayResponse(ListingSchema, "List of user's listings") },
+  }),
+  validator(
+    "query",
+    z.object({
+      status: z.enum(["draft", "active", "paused", "archived"]).optional(),
+    })
+  ),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-  return c.json({ data: listings });
-});
+    const { status } = c.req.valid("query");
+    const data = await listingService.getUserListings(supabaseAdmin, userId, status);
+    return c.json({ data });
+  }
+);
 
 export default listings;

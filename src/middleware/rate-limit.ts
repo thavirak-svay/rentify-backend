@@ -1,5 +1,8 @@
+import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
+import type { Env } from "../config/env";
 import { AppError } from "../lib/errors";
+import type { Variables } from "../types/variables";
 
 interface RateLimitStore {
   [key: string]: {
@@ -13,7 +16,7 @@ const store: RateLimitStore = {};
 export function rateLimit(options: {
   windowMs: number;
   maxRequests: number;
-  keyGenerator?: (c: any) => string;
+  keyGenerator?: (c: Context<{ Bindings: Env; Variables: Variables }>) => string;
 }) {
   return createMiddleware(async (c, next) => {
     const key = options.keyGenerator
@@ -25,7 +28,7 @@ export function rateLimit(options: {
 
     // Clean up old entries
     Object.keys(store).forEach((k) => {
-      if (store[k].resetTime < windowStart) {
+      if (store[k]?.resetTime && store[k].resetTime < windowStart) {
         delete store[k];
       }
     });
@@ -50,10 +53,7 @@ export function rateLimit(options: {
 
     // Add headers
     c.header("X-RateLimit-Limit", options.maxRequests.toString());
-    c.header(
-      "X-RateLimit-Remaining",
-      (options.maxRequests - store[key].count).toString()
-    );
+    c.header("X-RateLimit-Remaining", (options.maxRequests - store[key].count).toString());
     c.header("X-RateLimit-Reset", store[key].resetTime.toString());
 
     await next();

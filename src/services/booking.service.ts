@@ -1,10 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../config/env";
-import { calculatePricing, type PricingInput } from "../lib/pricing";
 import { validateTransition } from "../lib/booking-machine";
-import { NotFoundError, ForbiddenError, ConflictError } from "../lib/errors";
+import { ConflictError, ForbiddenError, NotFoundError } from "../lib/errors";
+import { calculatePricing, type PricingInput } from "../lib/pricing";
+import type { Booking, Profile } from "../types/database";
 import * as paymentService from "./payment.service";
-import type { Booking, Listing, Profile } from "../types/database";
 
 export interface CreateBookingInput {
   listing_id: string;
@@ -54,7 +54,8 @@ export async function createBooking(
     priceWeekly: listing.price_weekly,
     depositAmount: listing.deposit_amount,
     deliveryMethod: input.delivery_method || "pickup",
-    deliveryFee: listing.delivery_available && input.delivery_method === "delivery" ? listing.delivery_fee : 0,
+    deliveryFee:
+      listing.delivery_available && input.delivery_method === "delivery" ? listing.delivery_fee : 0,
     protectionPlan: input.protection_plan || "none",
     serviceFeeRate: 0.12,
   };

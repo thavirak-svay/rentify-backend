@@ -1,52 +1,110 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { describeRoute, validator } from "hono-openapi";
 import { z } from "zod";
-import { requireAuth } from "../middleware/auth";
+import type { Env } from "../config/env";
+import {
+  bearerAuth,
+  dataArrayResponse,
+  jsonContent,
+  successResponse,
+  uuidParam,
+} from "../lib/openapi-helpers";
+import { NotificationSchema } from "../lib/schemas";
+import { optionalAuth } from "../middleware/optional-auth";
 import * as notificationService from "../services/notification.service";
+import type { Variables } from "../types/variables";
 
-const notifications = new Hono();
+const notifications = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-const notificationIdSchema = z.object({
-  id: z.string().uuid(),
-});
+notifications.use("*", optionalAuth);
 
-notifications.get("/", requireAuth, async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const userId = c.get("userId");
-  const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!) : 50;
-  const unreadOnly = c.req.query("unread") === "true";
+notifications.get(
+  "/",
+  describeRoute({
+    tags: ["Notifications"],
+    summary: "List user notifications",
+    security: bearerAuth,
+    responses: { 200: dataArrayResponse(NotificationSchema, "List of notifications") },
+  }),
+  validator(
+    "query",
+    z.object({
+      limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+      unread: z.enum(["true", "false"]).optional(),
+    })
+  ),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-  const notifications = await notificationService.getUserNotifications(supabaseAdmin, userId, limit, unreadOnly);
+    const { limit, unread } = c.req.valid("query");
+    const data = await notificationService.getUserNotifications(
+      supabaseAdmin,
+      userId,
+      limit,
+      unread === "true"
+    );
+    return c.json({ data });
+  }
+);
 
-  return c.json({ data: notifications });
-});
+notifications.get(
+  "/unread-count",
+  describeRoute({
+    tags: ["Notifications"],
+    summary: "Get unread notification count",
+    security: bearerAuth,
+    responses: {
+      200: jsonContent(z.object({ data: z.object({ count: z.number() }) }), "Unread count"),
+    },
+  }),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-notifications.get("/unread-count", requireAuth, async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const userId = c.get("userId");
+    const count = await notificationService.getUnreadCount(supabaseAdmin, userId);
+    return c.json({ data: { count } });
+  }
+);
 
-  const count = await notificationService.getUnreadCount(supabaseAdmin, userId);
+notifications.post(
+  "/:id/read",
+  describeRoute({
+    tags: ["Notifications"],
+    summary: "Mark notification as read",
+    security: bearerAuth,
+    responses: { 200: successResponse("Notification marked as read") },
+  }),
+  validator("param", uuidParam),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-  return c.json({ data: { count } });
-});
+    const { id } = c.req.valid("param");
+    await notificationService.markAsRead(supabaseAdmin, id, userId);
+    return c.json({ success: true });
+  }
+);
 
-notifications.post("/:id/read", requireAuth, zValidator("param", notificationIdSchema), async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const userId = c.get("userId");
-  const { id } = c.req.valid("param");
+notifications.post(
+  "/mark-all-read",
+  describeRoute({
+    tags: ["Notifications"],
+    summary: "Mark all notifications as read",
+    security: bearerAuth,
+    responses: { 200: successResponse("All notifications marked as read") },
+  }),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-  await notificationService.markAsRead(supabaseAdmin, id, userId);
-
-  return c.json({ success: true });
-});
-
-notifications.post("/mark-all-read", requireAuth, async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const userId = c.get("userId");
-
-  await notificationService.markAllAsRead(supabaseAdmin, userId);
-
-  return c.json({ success: true });
-});
+    await notificationService.markAllAsRead(supabaseAdmin, userId);
+    return c.json({ success: true });
+  }
+);
 
 export default notifications;

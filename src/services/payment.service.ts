@@ -1,13 +1,48 @@
-import { createHash } from "crypto";
+import { createHash } from "node:crypto";
 import type { Env } from "../config/env";
 
+interface PayWayStatus {
+  code: string;
+  message?: string;
+}
+
+interface PayWayCaptureResponse {
+  status?: PayWayStatus;
+  grand_total?: number;
+  transaction_status?: string;
+}
+
+interface PayWayCancelResponse {
+  status?: PayWayStatus;
+  transaction_status?: string;
+}
+
+interface PayWayRefundResponse {
+  status?: PayWayStatus;
+  total_refunded?: number;
+  transaction_status?: string;
+}
+
+interface PayWayCheckResponse {
+  data?: {
+    payment_status?: string;
+    amount?: number;
+    currency?: string;
+  };
+}
+
 function generateHash(apiKey: string, data: string): string {
-  return createHash("sha512").update(data + apiKey).digest("base64");
+  return createHash("sha512")
+    .update(data + apiKey)
+    .digest("base64");
 }
 
 function formatReqTime(): string {
   const now = new Date();
-  return now.toISOString().replace(/[-:T.Z]/g, "").slice(0, 14);
+  return now
+    .toISOString()
+    .replace(/[-:T.Z]/g, "")
+    .slice(0, 14);
 }
 
 export interface PayWayBooking {
@@ -55,7 +90,12 @@ export async function createPreAuth(
   ).toString("base64");
 
   const hashString =
-    reqTime + env.PAYWAY_MERCHANT_ID + tranId + pricing.total_renter_pays.toString() + items + "pre-auth";
+    reqTime +
+    env.PAYWAY_MERCHANT_ID +
+    tranId +
+    pricing.total_renter_pays.toString() +
+    items +
+    "pre-auth";
 
   const body = {
     req_time: reqTime,
@@ -134,7 +174,7 @@ export async function captureWithPayout(
     throw new Error(`PayWay capture failed: ${response.statusText}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as PayWayCaptureResponse;
 
   if (data.status?.code !== "00") {
     throw new Error(`PayWay capture failed: ${data.status?.message || "Unknown error"}`);
@@ -142,8 +182,8 @@ export async function captureWithPayout(
 
   return {
     success: true,
-    grand_total: data.grand_total,
-    transaction_status: data.transaction_status,
+    grand_total: data.grand_total ?? 0,
+    transaction_status: data.transaction_status ?? "unknown",
   };
 }
 
@@ -177,11 +217,11 @@ export async function cancelPreAuth(
     throw new Error(`PayWay cancel failed: ${response.statusText}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as PayWayCancelResponse;
 
   return {
     success: data.status?.code === "00",
-    transaction_status: data.transaction_status,
+    transaction_status: data.transaction_status ?? "unknown",
   };
 }
 
@@ -216,12 +256,12 @@ export async function refundPayment(
     throw new Error(`PayWay refund failed: ${response.statusText}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as PayWayRefundResponse;
 
   return {
     success: data.status?.code === "00",
-    total_refunded: data.total_refunded,
-    transaction_status: data.transaction_status,
+    total_refunded: data.total_refunded ?? 0,
+    transaction_status: data.transaction_status ?? "unknown",
   };
 }
 
@@ -255,7 +295,7 @@ export async function checkTransaction(
     throw new Error(`PayWay check transaction failed: ${response.statusText}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as PayWayCheckResponse;
 
   return {
     payment_status: data.data?.payment_status || "UNKNOWN",

@@ -1,10 +1,12 @@
 export class AppError extends Error {
+  override message: string;
   constructor(
-    public message: string,
+    message: string,
     public statusCode: number = 500,
     public code: string = "INTERNAL_ERROR"
   ) {
     super(message);
+    this.message = message;
     this.name = "AppError";
   }
 }

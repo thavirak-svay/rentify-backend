@@ -1,11 +1,11 @@
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import {
+  type BookingStatus,
   canTransition,
   validateTransition,
-  type BookingStatus,
-  type Booking,
 } from "../../src/lib/booking-machine";
 import { BookingTransitionError, ForbiddenError } from "../../src/lib/errors";
+import type { Booking } from "../../src/types/database";
 
 describe("Booking State Machine", () => {
   const mockBooking = (overrides: Partial<Booking> = {}): Booking =>
@@ -151,7 +151,9 @@ describe("Booking State Machine", () => {
     test("renter can cancel requested booking", () => {
       const booking = mockBooking({ status: "requested" });
 
-      expect(() => validateTransition("requested", "cancelled", "renter-id", booking)).not.toThrow();
+      expect(() =>
+        validateTransition("requested", "cancelled", "renter-id", booking)
+      ).not.toThrow();
     });
 
     test("owner can cancel requested booking", () => {
@@ -163,17 +165,15 @@ describe("Booking State Machine", () => {
     test("third party cannot cancel booking", () => {
       const booking = mockBooking({ status: "requested" });
 
-      expect(() =>
-        validateTransition("requested", "cancelled", "third-party-id", booking)
-      ).toThrow(ForbiddenError);
+      expect(() => validateTransition("requested", "cancelled", "third-party-id", booking)).toThrow(
+        ForbiddenError
+      );
     });
 
     test("anyone can transition from active to completed (system)", () => {
       const booking = mockBooking({ status: "active" });
 
-      expect(() =>
-        validateTransition("active", "completed", "system-id", booking)
-      ).not.toThrow();
+      expect(() => validateTransition("active", "completed", "system-id", booking)).not.toThrow();
     });
   });
 
@@ -181,9 +181,9 @@ describe("Booking State Machine", () => {
     test("should throw BookingTransitionError for invalid transition", () => {
       const booking = mockBooking({ status: "requested" });
 
-      expect(() =>
-        validateTransition("requested", "completed", "renter-id", booking)
-      ).toThrow(BookingTransitionError);
+      expect(() => validateTransition("requested", "completed", "renter-id", booking)).toThrow(
+        BookingTransitionError
+      );
     });
 
     test("error message should include from and to states", () => {

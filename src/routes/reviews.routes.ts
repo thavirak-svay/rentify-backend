@@ -1,55 +1,73 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { describeRoute, validator } from "hono-openapi";
 import { z } from "zod";
-import { requireAuth } from "../middleware/auth";
+import type { Env } from "../config/env";
+import { bearerAuth, dataArrayResponse, dataResponse } from "../lib/openapi-helpers";
+import { ReviewSchema } from "../lib/schemas";
+import { optionalAuth } from "../middleware/optional-auth";
 import * as reviewService from "../services/review.service";
+import type { Variables } from "../types/variables";
 
-const reviews = new Hono();
+const reviews = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-const createReviewSchema = z.object({
+reviews.use("*", optionalAuth);
+
+const CreateReviewSchema = z.object({
   booking_id: z.string().uuid(),
   rating: z.number().int().min(1).max(5),
   comment: z.string().max(1000).optional(),
 });
 
-const listingIdSchema = z.object({
-  listingId: z.string().uuid(),
-});
-
-const userIdSchema = z.object({
-  userId: z.string().uuid(),
-});
-
-reviews.post("/", requireAuth, zValidator("json", createReviewSchema), async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const userId = c.get("userId");
-  const input = c.req.valid("json");
-
-  const review = await reviewService.createReview(supabaseAdmin, userId, input);
-
-  return c.json({ data: review }, 201);
-});
-
-reviews.get(
-  "/listings/:listingId",
-  zValidator("param", listingIdSchema),
+reviews.post(
+  "/",
+  describeRoute({
+    tags: ["Reviews"],
+    summary: "Create a review (post-booking only)",
+    security: bearerAuth,
+    responses: { 201: dataResponse(ReviewSchema, "Review created successfully") },
+  }),
+  validator("json", CreateReviewSchema),
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
-    const { listingId } = c.req.valid("param");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-    const reviews = await reviewService.getListingReviews(supabaseAdmin, listingId);
-
-    return c.json({ data: reviews });
+    const input = c.req.valid("json");
+    const data = await reviewService.createReview(supabaseAdmin, userId, input);
+    return c.json({ data }, 201);
   }
 );
 
-reviews.get("/users/:userId", zValidator("param", userIdSchema), async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const { userId } = c.req.valid("param");
+reviews.get(
+  "/listings/:listingId",
+  describeRoute({
+    tags: ["Reviews"],
+    summary: "Get reviews for a listing",
+    responses: { 200: dataArrayResponse(ReviewSchema, "List of reviews") },
+  }),
+  validator("param", z.object({ listingId: z.string().uuid() })),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const { listingId } = c.req.valid("param");
+    const data = await reviewService.getListingReviews(supabaseAdmin, listingId);
+    return c.json({ data });
+  }
+);
 
-  const reviews = await reviewService.getUserReviews(supabaseAdmin, userId);
-
-  return c.json({ data: reviews });
-});
+reviews.get(
+  "/users/:userId",
+  describeRoute({
+    tags: ["Reviews"],
+    summary: "Get reviews for a user",
+    responses: { 200: dataArrayResponse(ReviewSchema, "List of reviews") },
+  }),
+  validator("param", z.object({ userId: z.string().uuid() })),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const { userId } = c.req.valid("param");
+    const data = await reviewService.getUserReviews(supabaseAdmin, userId);
+    return c.json({ data });
+  }
+);
 
 export default reviews;

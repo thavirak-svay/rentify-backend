@@ -1,16 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Listing, ListingMedia } from "../types/database";
-import { NotFoundError, ForbiddenError } from "../lib/errors";
+import { ForbiddenError, NotFoundError } from "../lib/errors";
 import type { CreateListingInput, UpdateListingInput } from "../lib/validators";
+import type { Listing, ListingMedia } from "../types/database";
 
 export async function createListing(
   supabaseAdmin: SupabaseClient,
   ownerId: string,
   input: CreateListingInput
 ): Promise<Listing> {
-  const location = input.location
-    ? `POINT(${input.location.lng} ${input.location.lat})`
-    : null;
+  const location = input.location ? `POINT(${input.location.lng} ${input.location.lat})` : null;
 
   const { data, error } = await supabaseAdmin
     .from("listings")
@@ -47,10 +45,7 @@ export async function createListing(
   return data;
 }
 
-export async function getListing(
-  supabaseAdmin: SupabaseClient,
-  id: string
-): Promise<Listing> {
+export async function getListing(supabaseAdmin: SupabaseClient, id: string): Promise<Listing> {
   const { data, error } = await supabaseAdmin
     .from("listings")
     .select("*")

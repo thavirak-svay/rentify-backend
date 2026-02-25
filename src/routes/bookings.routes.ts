@@ -1,12 +1,24 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { describeRoute, validator } from "hono-openapi";
 import { z } from "zod";
-import { requireAuth } from "../middleware/auth";
+import type { Env } from "../config/env";
+import {
+  bearerAuth,
+  dataArrayResponse,
+  dataResponse,
+  jsonContent,
+  uuidParam,
+} from "../lib/openapi-helpers";
+import { BookingSchema } from "../lib/schemas";
+import { optionalAuth } from "../middleware/optional-auth";
 import * as bookingService from "../services/booking.service";
+import type { Variables } from "../types/variables";
 
-const bookings = new Hono();
+const bookings = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-const createBookingSchema = z.object({
+bookings.use("*", optionalAuth);
+
+const CreateBookingSchema = z.object({
   listing_id: z.string().uuid(),
   start_time: z.string().datetime(),
   end_time: z.string().datetime(),
@@ -15,82 +27,151 @@ const createBookingSchema = z.object({
   protection_plan: z.enum(["none", "basic", "premium"]).optional(),
 });
 
-const bookingIdSchema = z.object({
-  id: z.string().uuid(),
-});
+bookings.post(
+  "/",
+  describeRoute({
+    tags: ["Bookings"],
+    summary: "Create a booking request",
+    security: bearerAuth,
+    responses: {
+      201: jsonContent(
+        z.object({ data: z.object({ booking: BookingSchema, checkout_url: z.string() }) }),
+        "Booking created with payment URL"
+      ),
+    },
+  }),
+  validator("json", CreateBookingSchema),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const env = c.get("env");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-bookings.post("/", requireAuth, zValidator("json", createBookingSchema), async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const env = c.get("env");
-  const userId = c.get("userId");
-  const input = c.req.valid("json");
+    const input = c.req.valid("json");
+    const result = await bookingService.createBooking(supabaseAdmin, env, userId, input);
+    return c.json({ data: result }, 201);
+  }
+);
 
-  const result = await bookingService.createBooking(supabaseAdmin, env, userId, input);
+bookings.get(
+  "/:id",
+  describeRoute({
+    tags: ["Bookings"],
+    summary: "Get booking by ID",
+    security: bearerAuth,
+    responses: { 200: dataResponse(BookingSchema, "Booking details") },
+  }),
+  validator("param", uuidParam),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-  return c.json({ data: result }, 201);
-});
+    const { id } = c.req.valid("param");
+    const data = await bookingService.getBooking(supabaseAdmin, id, userId);
+    return c.json({ data });
+  }
+);
 
-bookings.get("/:id", requireAuth, zValidator("param", bookingIdSchema), async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const userId = c.get("userId");
-  const { id } = c.req.valid("param");
+bookings.get(
+  "/",
+  describeRoute({
+    tags: ["Bookings"],
+    summary: "List user's bookings",
+    security: bearerAuth,
+    responses: { 200: dataArrayResponse(BookingSchema, "List of bookings") },
+  }),
+  validator("query", z.object({ role: z.enum(["renter", "owner"]).optional() })),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-  const booking = await bookingService.getBooking(supabaseAdmin, id, userId);
+    const { role } = c.req.valid("query");
+    const data = await bookingService.getUserBookings(supabaseAdmin, userId, role);
+    return c.json({ data });
+  }
+);
 
-  return c.json({ data: booking });
-});
+bookings.post(
+  "/:id/approve",
+  describeRoute({
+    tags: ["Bookings"],
+    summary: "Approve a booking request",
+    security: bearerAuth,
+    responses: { 200: dataResponse(BookingSchema, "Booking approved") },
+  }),
+  validator("param", uuidParam),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const env = c.get("env");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-bookings.get("/", requireAuth, async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const userId = c.get("userId");
-  const role = c.req.query("role") as "renter" | "owner" | undefined;
+    const { id } = c.req.valid("param");
+    const data = await bookingService.approveBooking(supabaseAdmin, env, id, userId);
+    return c.json({ data });
+  }
+);
 
-  const bookings = await bookingService.getUserBookings(supabaseAdmin, userId, role);
+bookings.post(
+  "/:id/decline",
+  describeRoute({
+    tags: ["Bookings"],
+    summary: "Decline a booking request",
+    security: bearerAuth,
+    responses: { 200: dataResponse(BookingSchema, "Booking declined") },
+  }),
+  validator("param", uuidParam),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const env = c.get("env");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-  return c.json({ data: bookings });
-});
+    const { id } = c.req.valid("param");
+    const data = await bookingService.declineBooking(supabaseAdmin, env, id, userId);
+    return c.json({ data });
+  }
+);
 
-bookings.post("/:id/approve", requireAuth, zValidator("param", bookingIdSchema), async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const env = c.get("env");
-  const userId = c.get("userId");
-  const { id } = c.req.valid("param");
+bookings.post(
+  "/:id/cancel",
+  describeRoute({
+    tags: ["Bookings"],
+    summary: "Cancel a booking",
+    security: bearerAuth,
+    responses: { 200: dataResponse(BookingSchema, "Booking cancelled") },
+  }),
+  validator("param", uuidParam),
+  validator("json", z.object({ reason: z.string().optional() })),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const env = c.get("env");
+    const userId = c.get("userId");
+    if (!userId) throw new Error("Authentication required");
 
-  const booking = await bookingService.approveBooking(supabaseAdmin, env, id, userId);
+    const { id } = c.req.valid("param");
+    const { reason } = c.req.valid("json");
+    const data = await bookingService.cancelBooking(supabaseAdmin, env, id, userId, reason);
+    return c.json({ data });
+  }
+);
 
-  return c.json({ data: booking });
-});
-
-bookings.post("/:id/decline", requireAuth, zValidator("param", bookingIdSchema), async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const env = c.get("env");
-  const userId = c.get("userId");
-  const { id } = c.req.valid("param");
-
-  const booking = await bookingService.declineBooking(supabaseAdmin, env, id, userId);
-
-  return c.json({ data: booking });
-});
-
-bookings.post("/:id/cancel", requireAuth, zValidator("param", bookingIdSchema), async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const env = c.get("env");
-  const userId = c.get("userId");
-  const { id } = c.req.valid("param");
-  const { reason } = await c.req.json().catch(() => ({}));
-
-  const booking = await bookingService.cancelBooking(supabaseAdmin, env, id, userId, reason);
-
-  return c.json({ data: booking });
-});
-
-bookings.post("/:id/complete", requireAuth, zValidator("param", bookingIdSchema), async (c) => {
-  const supabaseAdmin = c.get("supabaseAdmin");
-  const { id } = c.req.valid("param");
-
-  const booking = await bookingService.completeBooking(supabaseAdmin, id);
-
-  return c.json({ data: booking });
-});
+bookings.post(
+  "/:id/complete",
+  describeRoute({
+    tags: ["Bookings"],
+    summary: "Mark booking as completed",
+    responses: { 200: dataResponse(BookingSchema, "Booking completed") },
+  }),
+  validator("param", uuidParam),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const { id } = c.req.valid("param");
+    const data = await bookingService.completeBooking(supabaseAdmin, id);
+    return c.json({ data });
+  }
+);
 
 export default bookings;

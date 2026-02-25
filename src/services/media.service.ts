@@ -5,7 +5,7 @@ export async function createUploadUrl(
   supabaseAdmin: SupabaseClient,
   userId: string,
   fileName: string,
-  contentType: string = "image/jpeg"
+  _contentType: string = "image/jpeg"
 ): Promise<{ upload_url: string; path: string; public_url: string }> {
   const timestamp = Date.now();
   const path = `uploads/${userId}/${timestamp}-${fileName}`;
@@ -18,8 +18,7 @@ export async function createUploadUrl(
     throw new Error(`Failed to create upload URL: ${error.message}`);
   }
 
-  const publicUrl = supabaseAdmin.storage.from("listing-media").getPublicUrl(path).data
-    .publicUrl;
+  const publicUrl = supabaseAdmin.storage.from("listing-media").getPublicUrl(path).data.publicUrl;
 
   return {
     upload_url: data.signedUrl,
@@ -30,13 +29,12 @@ export async function createUploadUrl(
 
 export async function confirmUpload(
   supabaseAdmin: SupabaseClient,
-  userId: string,
+  _userId: string,
   listingId: string,
   path: string,
   isPrimary: boolean = false
 ): Promise<{ id: string; url: string }> {
-  const publicUrl = supabaseAdmin.storage.from("listing-media").getPublicUrl(path).data
-    .publicUrl;
+  const publicUrl = supabaseAdmin.storage.from("listing-media").getPublicUrl(path).data.publicUrl;
 
   const { data, error } = await supabaseAdmin
     .from("listing_media")
@@ -70,8 +68,10 @@ export async function deleteMedia(
     throw new Error("Media not found");
   }
 
-  const listing = media.listings as { owner_id: string };
-  if (listing.owner_id !== userId) {
+  const listing = Array.isArray(media.listings)
+    ? media.listings[0]
+    : (media.listings as { owner_id: string } | null);
+  if (!listing || listing.owner_id !== userId) {
     throw new ForbiddenError("You can only delete your own media");
   }
 

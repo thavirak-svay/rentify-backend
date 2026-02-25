@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { z } from "zod";
 import { NotFoundError } from "../lib/errors";
 import type { Profile } from "../types/database";
-import { z } from "zod";
 
 export const updateProfileSchema = z.object({
   display_name: z.string().min(1).max(100).optional(),
@@ -16,10 +16,7 @@ export const updateProfileSchema = z.object({
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
-export async function getProfile(
-  supabaseAdmin: SupabaseClient,
-  userId: string
-): Promise<Profile> {
+export async function getProfile(supabaseAdmin: SupabaseClient, userId: string): Promise<Profile> {
   const { data: profile, error } = await supabaseAdmin
     .from("profiles")
     .select()

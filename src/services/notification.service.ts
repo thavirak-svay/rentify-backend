@@ -43,10 +43,7 @@ export async function markAsRead(
   }
 }
 
-export async function markAllAsRead(
-  supabaseAdmin: SupabaseClient,
-  userId: string
-): Promise<void> {
+export async function markAllAsRead(supabaseAdmin: SupabaseClient, userId: string): Promise<void> {
   const { error } = await supabaseAdmin
     .from("notifications")
     .update({ read_at: new Date().toISOString() })

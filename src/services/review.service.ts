@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { NotFoundError, ForbiddenError, ValidationError } from "../lib/errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "../lib/errors";
+import { log } from "../middleware/logger";
 import type { Review } from "../types/database";
 
 export interface CreateReviewInput {
@@ -65,7 +66,9 @@ export async function createReview(
     throw new Error(`Failed to create review: ${reviewError.message}`);
   }
 
-  notifyReviewReceived(supabaseAdmin, targetId, reviewerId, review).catch(console.error);
+  notifyReviewReceived(supabaseAdmin, targetId, reviewerId, review).catch((err) =>
+    log.error({ err, reviewId: review.id }, "Failed to send review notification")
+  );
 
   return review;
 }

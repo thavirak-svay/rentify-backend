@@ -43,11 +43,11 @@ export function calculatePricing(input: PricingInput): PricingResult {
     // Compare weekly vs daily pricing for 5+ day rentals
     const weeklyTotal = weeks * input.priceWeekly + remainingDays * input.priceDaily;
     const dailyTotal = days * input.priceDaily;
-    
+
     // Special case: for 5-6 days, consider using a full week if cheaper
     const fullWeekTotal = input.priceWeekly;
     const comparisonTotal = days >= 7 ? weeklyTotal : fullWeekTotal;
-    
+
     subtotal = Math.min(comparisonTotal, dailyTotal);
   } else {
     // Use daily rate
