@@ -5,7 +5,11 @@ import { isAppError, RateLimitError } from "../lib/errors";
 import { log } from "./logger";
 
 export async function errorHandler(err: Error, c: Context) {
-  Sentry.captureException(err);
+  const integration = (Sentry as any).getHonoIntegration?.();
+
+  if (integration) {
+    integration.handleHonoException(err, c);
+  }
 
   const requestId = c.get("requestId") as string | undefined;
 
