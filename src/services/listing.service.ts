@@ -39,6 +39,7 @@ export async function createListing(
     .single();
 
   if (error) throw new DatabaseError(`Failed to create listing: ${error.message}`);
+
   return data;
 }
 
