@@ -1,9 +1,12 @@
+import * as Sentry from "@sentry/node";
 import type { Context } from "hono";
 import { ZodError } from "zod";
 import { isAppError, RateLimitError } from "../lib/errors";
 import { log } from "./logger";
 
 export async function errorHandler(err: Error, c: Context) {
+  Sentry.captureException(err);
+
   const requestId = c.get("requestId") as string | undefined;
 
   if (err instanceof ZodError) {
