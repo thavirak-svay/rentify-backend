@@ -1,3 +1,3 @@
 import * as Sentry from "@sentry/cloudflare";
 
-Sentry.wrapRequestHandler;
+export { withSentry } from "@sentry/cloudflare";

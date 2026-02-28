@@ -1,9 +1,9 @@
-import "../instrument.mjs";
-
 import { Scalar } from "@scalar/hono-api-reference";
+import * as Sentry from "@sentry/cloudflare";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { openAPIRouteHandler } from "hono-openapi";
+import { withSentry } from "../instrument.mjs";
 import type { Env } from "./config/env";
 import { createSupabaseAdminClient, createSupabaseClient } from "./config/supabase";
 import { errorHandler } from "./middleware/error-handler";
@@ -94,4 +94,12 @@ app.get(
   })
 );
 
-export default app;
+export default withSentry(
+  (env: Env) => ({
+    dsn: env.SENTRY_DSN,
+    tracesSampleRate: 1.0,
+    environment: "development",
+    integrations: [Sentry.honoIntegration()],
+  }),
+  { fetch: app.fetch }
+);
