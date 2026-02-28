@@ -98,7 +98,7 @@ export default withSentry(
   (env: Env) => ({
     dsn: env.SENTRY_DSN,
     tracesSampleRate: 1.0,
-    environment: "development",
+    environment: "production",
     integrations: [Sentry.honoIntegration()],
   }),
   { fetch: app.fetch }
