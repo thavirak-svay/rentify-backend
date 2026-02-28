@@ -33,7 +33,7 @@ export interface SearchResult {
   listing_rating: number;
   review_count: number;
   distance_km: number | null;
-  first_image_url: string | null;
+  thumbnail_url: string | null;
   created_at: string;
 }
 

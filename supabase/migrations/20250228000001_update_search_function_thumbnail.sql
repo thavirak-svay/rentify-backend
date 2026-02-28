@@ -1,4 +1,6 @@
--- Search function using full-text + geo + filters
+-- Update search_listings function to return thumbnail_url instead of first_image_url
+-- This change optimizes the browse page by returning smaller thumbnail images
+
 CREATE OR REPLACE FUNCTION search_listings(
   search_query TEXT DEFAULT NULL,
   search_lat FLOAT DEFAULT NULL,
@@ -12,43 +14,43 @@ CREATE OR REPLACE FUNCTION search_listings(
   result_limit INTEGER DEFAULT 20,
   result_offset INTEGER DEFAULT 0
 )
- RETURNS TABLE (
-   id UUID,
-   title VARCHAR,
-   description TEXT,
-   type listing_type,
-   price_daily INTEGER,
-   deposit_amount INTEGER,
-   currency CHAR(3),
-   owner_id UUID,
-   owner_display_name VARCHAR,
-   owner_avatar_url TEXT,
-   owner_rating NUMERIC,
-   owner_verified BOOLEAN,
-   listing_rating NUMERIC,
-   review_count INTEGER,
-   distance_km FLOAT,
-   thumbnail_url TEXT,
-   created_at TIMESTAMPTZ
- ) AS $$
- BEGIN
-   RETURN QUERY
-   SELECT
-     l.id, l.title, l.description, l.type, l.price_daily,
-     l.deposit_amount, l.currency, l.owner_id,
-     p.display_name, p.avatar_url, p.rating_avg,
-     (p.identity_status = 'verified'),
-     l.rating_avg, l.rating_count,
-     CASE
-       WHEN search_lat IS NOT NULL AND search_lng IS NOT NULL
-       THEN ST_Distance(
-         l.location,
-         ST_SetSRID(ST_MakePoint(search_lng, search_lat),4326)::geography
-       ) / 1000.0
-       ELSE NULL
-     END AS distance_km,
-     (SELECT thumbnail_url FROM listing_media lm WHERE lm.listing_id = l.id ORDER BY lm.sort_order LIMIT 1),
-     l.created_at
+RETURNS TABLE (
+  id UUID,
+  title VARCHAR,
+  description TEXT,
+  type listing_type,
+  price_daily INTEGER,
+  deposit_amount INTEGER,
+  currency CHAR(3),
+  owner_id UUID,
+  owner_display_name VARCHAR,
+  owner_avatar_url TEXT,
+  owner_rating NUMERIC,
+  owner_verified BOOLEAN,
+  listing_rating NUMERIC,
+  review_count INTEGER,
+  distance_km FLOAT,
+  thumbnail_url TEXT,
+  created_at TIMESTAMPTZ
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    l.id, l.title, l.description, l.type, l.price_daily,
+    l.deposit_amount, l.currency, l.owner_id,
+    p.display_name, p.avatar_url, p.rating_avg,
+    (p.identity_status = 'verified'),
+    l.rating_avg, l.rating_count,
+    CASE
+      WHEN search_lat IS NOT NULL AND search_lng IS NOT NULL
+      THEN ST_Distance(
+        l.location,
+        ST_SetSRID(ST_MakePoint(search_lng, search_lat),4326)::geography
+      ) / 1000.0
+      ELSE NULL
+    END AS distance_km,
+    (SELECT thumbnail_url FROM listing_media lm WHERE lm.listing_id = l.id ORDER BY lm.sort_order LIMIT 1),
+    l.created_at
   FROM listings l
   JOIN profiles p ON l.owner_id = p.id
   WHERE l.status = 'active'

@@ -31,20 +31,6 @@ interface PayWayCheckResponse {
   };
 }
 
-function generateHash(apiKey: string, data: string): string {
-  return createHash("sha512")
-    .update(data + apiKey)
-    .digest("base64");
-}
-
-function formatReqTime(): string {
-  const now = new Date();
-  return now
-    .toISOString()
-    .replace(/[-:T.Z]/g, "")
-    .slice(0, 14);
-}
-
 export interface PayWayBooking {
   id: string;
   listingTitle: string;
@@ -65,6 +51,20 @@ export interface PreAuthResult {
   transaction_id: string;
   payway_tran_id: string;
   checkout_url: string;
+}
+
+function generateHash(apiKey: string, data: string): string {
+  return createHash("sha512")
+    .update(data + apiKey)
+    .digest("base64");
+}
+
+function formatReqTime(): string {
+  const now = new Date();
+  return now
+    .toISOString()
+    .replace(/[-:T.Z]/g, "")
+    .slice(0, 14);
 }
 
 export async function createPreAuth(
@@ -115,12 +115,14 @@ export async function createPreAuth(
     cancel_url: `${env.APP_URL}/bookings/${booking.id}`,
     lifetime: 30,
     custom_fields: JSON.stringify({ booking_id: booking.id, owner_id: booking.ownerId }),
-    payout: JSON.stringify([
-      {
-        acc: booking.ownerPaywayBeneficiaryId,
-        amt: (pricing.owner_payout / 100).toFixed(2),
-      },
-    ]),
+    payout: booking.ownerPaywayBeneficiaryId
+      ? JSON.stringify([
+          {
+            acc: booking.ownerPaywayBeneficiaryId,
+            amt: (pricing.owner_payout / 100).toFixed(2),
+          },
+        ])
+      : undefined,
     hash: generateHash(env.PAYWAY_API_KEY, hashString),
   };
 
@@ -131,7 +133,8 @@ export async function createPreAuth(
   });
 
   if (!response.ok) {
-    throw new Error(`PayWay pre-auth failed: ${response.statusText}`);
+    const errorText = await response.text();
+    throw new Error(`PayWay pre-auth failed: ${response.status} - ${errorText}`);
   }
 
   const checkoutHtml = await response.text();
@@ -171,7 +174,8 @@ export async function captureWithPayout(
   );
 
   if (!response.ok) {
-    throw new Error(`PayWay capture failed: ${response.statusText}`);
+    const errorText = await response.text();
+    throw new Error(`PayWay capture failed: ${response.status} - ${errorText}`);
   }
 
   const data = (await response.json()) as PayWayCaptureResponse;
@@ -214,7 +218,8 @@ export async function cancelPreAuth(
   );
 
   if (!response.ok) {
-    throw new Error(`PayWay cancel failed: ${response.statusText}`);
+    const errorText = await response.text();
+    throw new Error(`PayWay cancel failed: ${response.status} - ${errorText}`);
   }
 
   const data = (await response.json()) as PayWayCancelResponse;
@@ -253,7 +258,8 @@ export async function refundPayment(
   );
 
   if (!response.ok) {
-    throw new Error(`PayWay refund failed: ${response.statusText}`);
+    const errorText = await response.text();
+    throw new Error(`PayWay refund failed: ${response.status} - ${errorText}`);
   }
 
   const data = (await response.json()) as PayWayRefundResponse;

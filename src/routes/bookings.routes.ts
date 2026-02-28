@@ -159,6 +159,22 @@ bookings.post(
 );
 
 bookings.post(
+  "/:id/activate",
+  describeRoute({
+    tags: ["Bookings"],
+    summary: "Mark booking as active (start rental)",
+    responses: { 200: dataResponse(BookingSchema, "Booking activated") },
+  }),
+  validator("param", uuidParam),
+  async (c) => {
+    const supabaseAdmin = c.get("supabaseAdmin");
+    const { id } = c.req.valid("param");
+    const data = await bookingService.activateBooking(supabaseAdmin, id);
+    return c.json({ data });
+  }
+);
+
+bookings.post(
   "/:id/complete",
   describeRoute({
     tags: ["Bookings"],

@@ -18,7 +18,7 @@ export async function errorHandler(err: Error, c: Context) {
           code: "VALIDATION_ERROR",
           message: "Validation failed",
           request_id: requestId,
-          details: err.errors.map((e) => ({
+          details: err.issues.map((e) => ({
             field: e.path.join("."),
             message: e.message,
           })),

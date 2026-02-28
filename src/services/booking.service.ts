@@ -108,20 +108,28 @@ export async function createBooking(
     ownerPaywayBeneficiaryId: owner.payway_beneficiary_id || "",
   };
 
-  const paymentResult = await paymentService.createPreAuth(env, paywayBooking, pricing);
+  let checkoutUrl = "";
 
-  await supabaseAdmin.from("transactions").insert({
-    booking_id: booking.id,
-    type: "pre_auth",
-    status: "pending",
-    amount: pricing.total_renter_pays,
-    currency: listing.currency,
-    payway_tran_id: paymentResult.payway_tran_id,
-  });
+  try {
+    const paymentResult = await paymentService.createPreAuth(env, paywayBooking, pricing);
+    checkoutUrl = paymentResult.checkout_url;
+
+    await supabaseAdmin.from("transactions").insert({
+      booking_id: booking.id,
+      type: "pre_auth",
+      status: "pending",
+      amount: pricing.total_renter_pays,
+      currency: listing.currency,
+      payway_tran_id: paymentResult.payway_tran_id,
+    });
+  } catch (e) {
+    console.error("PayWay pre-auth failed:", e);
+    checkoutUrl = "";
+  }
 
   return {
     booking,
-    checkout_url: paymentResult.checkout_url,
+    checkout_url: checkoutUrl,
   };
 }
 
@@ -145,7 +153,15 @@ export async function approveBooking(
 
   const transaction = booking.transactions?.[0];
   if (transaction?.payway_tran_id) {
-    await paymentService.captureWithPayout(env, transaction.payway_tran_id);
+    try {
+      await paymentService.captureWithPayout(env, transaction.payway_tran_id);
+      await supabaseAdmin
+        .from("transactions")
+        .update({ status: "completed", processed_at: new Date().toISOString() })
+        .eq("payway_tran_id", transaction.payway_tran_id);
+    } catch (e) {
+      console.error("PayWay capture failed:", e);
+    }
   }
 
   const { data: updated, error: updateError } = await supabaseAdmin
@@ -160,13 +176,6 @@ export async function approveBooking(
 
   if (updateError) {
     throw new Error(`Failed to approve booking: ${updateError.message}`);
-  }
-
-  if (transaction?.payway_tran_id) {
-    await supabaseAdmin
-      .from("transactions")
-      .update({ status: "completed", processed_at: new Date().toISOString() })
-      .eq("payway_tran_id", transaction.payway_tran_id);
   }
 
   return updated;
@@ -192,7 +201,15 @@ export async function declineBooking(
 
   const transaction = booking.transactions?.[0];
   if (transaction?.payway_tran_id) {
-    await paymentService.cancelPreAuth(env, transaction.payway_tran_id);
+    try {
+      await paymentService.cancelPreAuth(env, transaction.payway_tran_id);
+      await supabaseAdmin
+        .from("transactions")
+        .update({ status: "cancelled", processed_at: new Date().toISOString() })
+        .eq("payway_tran_id", transaction.payway_tran_id);
+    } catch (e) {
+      console.error("PayWay cancel failed:", e);
+    }
   }
 
   const { data: updated, error: updateError } = await supabaseAdmin
@@ -207,13 +224,6 @@ export async function declineBooking(
 
   if (updateError) {
     throw new Error(`Failed to decline booking: ${updateError.message}`);
-  }
-
-  if (transaction?.payway_tran_id) {
-    await supabaseAdmin
-      .from("transactions")
-      .update({ status: "cancelled", processed_at: new Date().toISOString() })
-      .eq("payway_tran_id", transaction.payway_tran_id);
   }
 
   return updated;
@@ -241,10 +251,19 @@ export async function cancelBooking(
   const transaction = booking.transactions?.[0];
 
   if (transaction?.payway_tran_id) {
-    if (booking.status === "requested" || booking.status === "approved") {
-      await paymentService.cancelPreAuth(env, transaction.payway_tran_id);
-    } else if (booking.status === "active") {
-      await paymentService.refundPayment(env, transaction.payway_tran_id);
+    try {
+      if (booking.status === "requested" || booking.status === "approved") {
+        await paymentService.cancelPreAuth(env, transaction.payway_tran_id);
+      } else if (booking.status === "active") {
+        await paymentService.refundPayment(env, transaction.payway_tran_id);
+      }
+      const txStatus = booking.status === "active" ? "refunded" : "cancelled";
+      await supabaseAdmin
+        .from("transactions")
+        .update({ status: txStatus, processed_at: new Date().toISOString() })
+        .eq("payway_tran_id", transaction.payway_tran_id);
+    } catch (e) {
+      console.error("PayWay cancel/refund failed:", e);
     }
   }
 
@@ -264,12 +283,39 @@ export async function cancelBooking(
     throw new Error(`Failed to cancel booking: ${updateError.message}`);
   }
 
-  if (transaction?.payway_tran_id) {
-    const txStatus = booking.status === "active" ? "refunded" : "cancelled";
-    await supabaseAdmin
-      .from("transactions")
-      .update({ status: txStatus, processed_at: new Date().toISOString() })
-      .eq("payway_tran_id", transaction.payway_tran_id);
+  return updated;
+}
+
+export async function activateBooking(
+  supabaseAdmin: SupabaseClient,
+  bookingId: string
+): Promise<Booking> {
+  const { data: booking, error } = await supabaseAdmin
+    .from("bookings")
+    .select()
+    .eq("id", bookingId)
+    .single();
+
+  if (error || !booking) {
+    throw new NotFoundError("Booking not found");
+  }
+
+  if (booking.status !== "approved") {
+    throw new Error("Can only activate approved bookings");
+  }
+
+  const { data: updated, error: updateError } = await supabaseAdmin
+    .from("bookings")
+    .update({
+      status: "active",
+      started_at: new Date().toISOString(),
+    })
+    .eq("id", bookingId)
+    .select()
+    .single();
+
+  if (updateError) {
+    throw new Error(`Failed to activate booking: ${updateError.message}`);
   }
 
   return updated;

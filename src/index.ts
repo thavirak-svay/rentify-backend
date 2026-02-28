@@ -11,6 +11,7 @@ import bookingRoutes from "./routes/bookings.routes";
 import categoryRoutes from "./routes/categories.routes";
 import listingRoutes from "./routes/listings.routes";
 import mediaRoutes from "./routes/media.routes";
+import mockPaymentRoutes from "./routes/mock-payment.routes";
 import notificationRoutes from "./routes/notifications.routes";
 import paymentRoutes from "./routes/payments.routes";
 import reviewRoutes from "./routes/reviews.routes";
@@ -53,6 +54,7 @@ app.route("/v1/reviews", reviewRoutes);
 app.route("/v1/notifications", notificationRoutes);
 app.route("/v1/users", userRoutes);
 app.route("/v1/categories", categoryRoutes);
+app.route("/v1/payments/mock", mockPaymentRoutes);
 
 app.get(
   "/openapi.json",
@@ -69,16 +71,12 @@ app.get(
       },
       servers: [
         {
-          url: "http://localhost:8787",
-          description: "Development",
-        },
-        {
           url: "https://rentify-api.thaavirak.workers.dev",
           description: "Production",
         },
         {
-          url: "https://api.rentify.com",
-          description: "Production (Custom Domain)",
+          url: "http://localhost:8787",
+          description: "Development",
         },
       ],
     },
