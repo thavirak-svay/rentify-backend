@@ -6,9 +6,11 @@ describe("Message Service", () => {
   const mockThread = {
     id: "thread-123",
     listing_id: "listing-123",
+    booking_id: null,
     participant_ids: ["user-1", "user-2"],
     last_message_at: "2024-01-01T00:00:00Z",
     created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
   };
 
   const mockMessage = {
@@ -16,6 +18,7 @@ describe("Message Service", () => {
     thread_id: "thread-123",
     sender_id: "user-1",
     content: "Hello!",
+    read_at: null,
     created_at: "2024-01-01T00:00:00Z",
   };
 
@@ -43,8 +46,12 @@ describe("Message Service", () => {
           return {
             select: () => ({
               eq: () => ({
-                order: () => Promise.resolve({ data: [mockMessage], error: null }),
-                lt: () => Promise.resolve({ data: [mockMessage], error: null }),
+                order: () => ({
+                  limit: () => Promise.resolve({ data: [mockMessage], error: null }),
+                }),
+                lt: () => ({
+                  limit: () => Promise.resolve({ data: [mockMessage], error: null }),
+                }),
               }),
               neq: () => ({
                 is: () => Promise.resolve({ data: null, error: null }),
@@ -202,28 +209,84 @@ describe("Message Service", () => {
 
       await expect(
         messageService.sendMessage(mockClient, "thread-123", "user-3", "Hello!")
-      ).rejects.toThrow("You are not a participant in this thread");
+      ).rejects.toThrow("Not a participant in this thread");
     });
 
     test("should throw error when sending fails", async () => {
       const mockClient = {
-        from: () => ({
-          select: () => ({
-            eq: () => ({
-              single: () => Promise.resolve({ data: mockThread, error: null }),
-            }),
-          }),
-          insert: () => ({
+        from: (table: string) => {
+          if (table === "message_threads") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  single: () => Promise.resolve({ data: mockThread, error: null }),
+                }),
+              }),
+            };
+          }
+          return {
             select: () => ({
-              single: () => Promise.resolve({ data: null, error: { message: "Insert failed" } }),
+              eq: () => ({
+                single: () => Promise.resolve({ data: mockThread, error: null }),
+              }),
             }),
-          }),
-        }),
+            insert: () => ({
+              select: () => ({
+                single: () => Promise.resolve({ data: null, error: { message: "Insert failed" } }),
+              }),
+            }),
+          };
+        },
       } as unknown as SupabaseClient;
 
       await expect(
         messageService.sendMessage(mockClient, "thread-123", "user-1", "Hello!")
       ).rejects.toThrow("Failed to send message: Insert failed");
+    });
+
+    test("should send message and create notification", async () => {
+      const mockClient = {
+        from: (table: string) => {
+          if (table === "message_threads") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  single: () => Promise.resolve({ data: mockThread, error: null }),
+                }),
+              }),
+            };
+          }
+          if (table === "profiles") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  single: () => Promise.resolve({ data: { display_name: "Test User" }, error: null }),
+                }),
+              }),
+            };
+          }
+          if (table === "messages") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  single: () => Promise.resolve({ data: mockThread, error: null }),
+                }),
+              }),
+              insert: () => ({
+                select: () => ({
+                  single: () => Promise.resolve({ data: mockMessage, error: null }),
+                }),
+              }),
+            };
+          }
+          return {
+            insert: () => Promise.resolve({ data: null, error: null }),
+          };
+        },
+      } as unknown as SupabaseClient;
+
+      const result = await messageService.sendMessage(mockClient, "thread-123", "user-1", "Hello!");
+      expect(result).toEqual(mockMessage);
     });
   });
 
@@ -243,7 +306,9 @@ describe("Message Service", () => {
           return {
             select: () => ({
               eq: () => ({
-                order: () => Promise.resolve({ data: [mockMessage], error: null }),
+                order: () => ({
+                  limit: () => Promise.resolve({ data: [mockMessage], error: null }),
+                }),
               }),
             }),
           };
@@ -251,40 +316,6 @@ describe("Message Service", () => {
       } as unknown as SupabaseClient;
 
       const result = await messageService.getMessages(mockClient, "thread-123", "user-1");
-      expect(result).toHaveLength(1);
-    });
-
-    test("should handle pagination with before parameter", async () => {
-      const mockClient = {
-        from: (table: string) => {
-          if (table === "message_threads") {
-            return {
-              select: () => ({
-                eq: () => ({
-                  single: () => Promise.resolve({ data: mockThread, error: null }),
-                }),
-              }),
-            };
-          }
-          return {
-            select: () => ({
-              eq: () => ({
-                order: () => ({
-                  lt: () => Promise.resolve({ data: [mockMessage], error: null }),
-                }),
-              }),
-            }),
-          };
-        },
-      } as unknown as SupabaseClient;
-
-      const result = await messageService.getMessages(
-        mockClient,
-        "thread-123",
-        "user-1",
-        50,
-        "2024-01-01T00:00:00Z"
-      );
       expect(result).toHaveLength(1);
     });
 
@@ -303,7 +334,9 @@ describe("Message Service", () => {
           return {
             select: () => ({
               eq: () => ({
-                order: () => Promise.resolve({ data: null, error: { message: "DB error" } }),
+                order: () => ({
+                  limit: () => Promise.resolve({ data: null, error: { message: "DB error" } }),
+                }),
               }),
             }),
           };

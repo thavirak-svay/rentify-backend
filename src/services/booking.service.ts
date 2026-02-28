@@ -1,7 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../config/env";
 import { validateTransition } from "../lib/booking-machine";
-import { ConflictError, ForbiddenError, NotFoundError } from "../lib/errors";
+import {
+  ConflictError,
+  DatabaseError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from "../lib/errors";
 import { calculatePricing, type PricingInput } from "../lib/pricing";
 import type { Booking, Profile } from "../types/database";
 import * as paymentService from "./payment.service";
@@ -13,6 +19,82 @@ export interface CreateBookingInput {
   delivery_method?: "pickup" | "delivery";
   delivery_address?: string;
   protection_plan?: "none" | "basic" | "premium";
+}
+
+export interface BookingRepository {
+  create(
+    input: CreateBookingInput,
+    renterId: string,
+    env: Env
+  ): Promise<{ booking: Booking; checkout_url: string }>;
+  findById(id: string): Promise<Booking>;
+  findByIdWithTransactions(
+    id: string
+  ): Promise<Booking & { transactions: Array<{ payway_tran_id?: string }> }>;
+  approve(id: string, userId: string, env: Env): Promise<Booking>;
+  decline(id: string, userId: string, env: Env): Promise<Booking>;
+  cancel(id: string, userId: string, env: Env, reason?: string): Promise<Booking>;
+  activate(id: string): Promise<Booking>;
+  complete(id: string): Promise<Booking>;
+  findByUser(userId: string, role?: "renter" | "owner"): Promise<Booking[]>;
+}
+
+export function createBookingRepository(
+  supabaseAdmin: SupabaseClient
+): Pick<BookingRepository, "findById" | "findByIdWithTransactions" | "findByUser"> {
+  async function findById(id: string): Promise<Booking> {
+    const { data, error } = await supabaseAdmin.from("bookings").select().eq("id", id).single();
+
+    if (error || !data) {
+      throw new NotFoundError("Booking not found");
+    }
+
+    return data;
+  }
+
+  async function findByIdWithTransactions(
+    id: string
+  ): Promise<Booking & { transactions: Array<{ payway_tran_id?: string }> }> {
+    const { data, error } = await supabaseAdmin
+      .from("bookings")
+      .select("*, transactions(*)")
+      .eq("id", id)
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundError("Booking not found");
+    }
+
+    return data as Booking & { transactions: Array<{ payway_tran_id?: string }> };
+  }
+
+  async function findByUser(userId: string, role?: "renter" | "owner"): Promise<Booking[]> {
+    let query = supabaseAdmin
+      .from("bookings")
+      .select()
+      .or(`renter_id.eq.${userId},owner_id.eq.${userId}`)
+      .order("created_at", { ascending: false });
+
+    if (role === "renter") {
+      query = query.eq("renter_id", userId);
+    } else if (role === "owner") {
+      query = query.eq("owner_id", userId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new DatabaseError(`Failed to get bookings: ${error.message}`);
+    }
+
+    return data || [];
+  }
+
+  return {
+    findById,
+    findByIdWithTransactions,
+    findByUser,
+  };
 }
 
 export async function createBooking(
@@ -88,7 +170,7 @@ export async function createBooking(
     .single();
 
   if (bookingError || !booking) {
-    throw new Error(`Failed to create booking: ${bookingError?.message}`);
+    throw new DatabaseError(`Failed to create booking: ${bookingError?.message}`);
   }
 
   const { data: renter } = await supabaseAdmin
@@ -139,15 +221,8 @@ export async function approveBooking(
   bookingId: string,
   userId: string
 ): Promise<Booking> {
-  const { data: booking, error } = await supabaseAdmin
-    .from("bookings")
-    .select("*, transactions(*)")
-    .eq("id", bookingId)
-    .single();
-
-  if (error || !booking) {
-    throw new NotFoundError("Booking not found");
-  }
+  const repo = createBookingRepository(supabaseAdmin);
+  const booking = await repo.findByIdWithTransactions(bookingId);
 
   validateTransition(booking.status, "approved", userId, booking);
 
@@ -175,7 +250,7 @@ export async function approveBooking(
     .single();
 
   if (updateError) {
-    throw new Error(`Failed to approve booking: ${updateError.message}`);
+    throw new DatabaseError(`Failed to approve booking: ${updateError.message}`);
   }
 
   return updated;
@@ -187,15 +262,8 @@ export async function declineBooking(
   bookingId: string,
   userId: string
 ): Promise<Booking> {
-  const { data: booking, error } = await supabaseAdmin
-    .from("bookings")
-    .select("*, transactions(*)")
-    .eq("id", bookingId)
-    .single();
-
-  if (error || !booking) {
-    throw new NotFoundError("Booking not found");
-  }
+  const repo = createBookingRepository(supabaseAdmin);
+  const booking = await repo.findByIdWithTransactions(bookingId);
 
   validateTransition(booking.status, "declined", userId, booking);
 
@@ -223,7 +291,7 @@ export async function declineBooking(
     .single();
 
   if (updateError) {
-    throw new Error(`Failed to decline booking: ${updateError.message}`);
+    throw new DatabaseError(`Failed to decline booking: ${updateError.message}`);
   }
 
   return updated;
@@ -236,15 +304,8 @@ export async function cancelBooking(
   userId: string,
   reason?: string
 ): Promise<Booking> {
-  const { data: booking, error } = await supabaseAdmin
-    .from("bookings")
-    .select("*, transactions(*)")
-    .eq("id", bookingId)
-    .single();
-
-  if (error || !booking) {
-    throw new NotFoundError("Booking not found");
-  }
+  const repo = createBookingRepository(supabaseAdmin);
+  const booking = await repo.findByIdWithTransactions(bookingId);
 
   validateTransition(booking.status, "cancelled", userId, booking);
 
@@ -280,7 +341,7 @@ export async function cancelBooking(
     .single();
 
   if (updateError) {
-    throw new Error(`Failed to cancel booking: ${updateError.message}`);
+    throw new DatabaseError(`Failed to cancel booking: ${updateError.message}`);
   }
 
   return updated;
@@ -290,18 +351,11 @@ export async function activateBooking(
   supabaseAdmin: SupabaseClient,
   bookingId: string
 ): Promise<Booking> {
-  const { data: booking, error } = await supabaseAdmin
-    .from("bookings")
-    .select()
-    .eq("id", bookingId)
-    .single();
-
-  if (error || !booking) {
-    throw new NotFoundError("Booking not found");
-  }
+  const repo = createBookingRepository(supabaseAdmin);
+  const booking = await repo.findById(bookingId);
 
   if (booking.status !== "approved") {
-    throw new Error("Can only activate approved bookings");
+    throw new ValidationError("Can only activate approved bookings");
   }
 
   const { data: updated, error: updateError } = await supabaseAdmin
@@ -315,7 +369,7 @@ export async function activateBooking(
     .single();
 
   if (updateError) {
-    throw new Error(`Failed to activate booking: ${updateError.message}`);
+    throw new DatabaseError(`Failed to activate booking: ${updateError.message}`);
   }
 
   return updated;
@@ -325,15 +379,8 @@ export async function completeBooking(
   supabaseAdmin: SupabaseClient,
   bookingId: string
 ): Promise<Booking> {
-  const { data: booking, error } = await supabaseAdmin
-    .from("bookings")
-    .select()
-    .eq("id", bookingId)
-    .single();
-
-  if (error || !booking) {
-    throw new NotFoundError("Booking not found");
-  }
+  const repo = createBookingRepository(supabaseAdmin);
+  const booking = await repo.findById(bookingId);
 
   validateTransition(booking.status, "completed", "system", booking);
 
@@ -348,7 +395,7 @@ export async function completeBooking(
     .single();
 
   if (updateError) {
-    throw new Error(`Failed to complete booking: ${updateError.message}`);
+    throw new DatabaseError(`Failed to complete booking: ${updateError.message}`);
   }
 
   return updated;
@@ -359,15 +406,8 @@ export async function getBooking(
   bookingId: string,
   userId: string
 ): Promise<Booking> {
-  const { data: booking, error } = await supabaseAdmin
-    .from("bookings")
-    .select()
-    .eq("id", bookingId)
-    .single();
-
-  if (error || !booking) {
-    throw new NotFoundError("Booking not found");
-  }
+  const repo = createBookingRepository(supabaseAdmin);
+  const booking = await repo.findById(bookingId);
 
   if (booking.renter_id !== userId && booking.owner_id !== userId) {
     throw new ForbiddenError("You can only view your own bookings");
@@ -381,23 +421,6 @@ export async function getUserBookings(
   userId: string,
   role?: "renter" | "owner"
 ): Promise<Booking[]> {
-  let query = supabaseAdmin
-    .from("bookings")
-    .select()
-    .or(`renter_id.eq.${userId},owner_id.eq.${userId}`)
-    .order("created_at", { ascending: false });
-
-  if (role === "renter") {
-    query = query.eq("renter_id", userId);
-  } else if (role === "owner") {
-    query = query.eq("owner_id", userId);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    throw new Error(`Failed to get bookings: ${error.message}`);
-  }
-
-  return data || [];
+  const repo = createBookingRepository(supabaseAdmin);
+  return repo.findByUser(userId, role);
 }

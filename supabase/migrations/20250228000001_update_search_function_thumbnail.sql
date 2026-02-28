@@ -1,6 +1,8 @@
 -- Update search_listings function to return thumbnail_url instead of first_image_url
 -- This change optimizes the browse page by returning smaller thumbnail images
 
+DROP FUNCTION IF EXISTS search_listings(TEXT, FLOAT, FLOAT, FLOAT, TEXT, TEXT, INTEGER, INTEGER, TEXT, INTEGER, INTEGER);
+
 CREATE OR REPLACE FUNCTION search_listings(
   search_query TEXT DEFAULT NULL,
   search_lat FLOAT DEFAULT NULL,

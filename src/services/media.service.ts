@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ForbiddenError } from "../lib/errors";
+import { DatabaseError, ForbiddenError, NotFoundError } from "../lib/errors";
 
 export async function createUploadUrl(
   supabaseAdmin: SupabaseClient,
@@ -15,7 +15,7 @@ export async function createUploadUrl(
     .createSignedUploadUrl(path);
 
   if (error) {
-    throw new Error(`Failed to create upload URL: ${error.message}`);
+    throw new DatabaseError(`Failed to create upload URL: ${error.message}`);
   }
 
   const publicUrl = supabaseAdmin.storage.from("listing-media").getPublicUrl(path).data.publicUrl;
@@ -47,7 +47,7 @@ export async function confirmUpload(
     .single();
 
   if (error) {
-    throw new Error(`Failed to confirm upload: ${error.message}`);
+    throw new DatabaseError(`Failed to confirm upload: ${error.message}`);
   }
 
   return data;
@@ -65,7 +65,7 @@ export async function deleteMedia(
     .single();
 
   if (fetchError || !media) {
-    throw new Error("Media not found");
+    throw new NotFoundError("Media not found");
   }
 
   const listing = Array.isArray(media.listings)
@@ -81,7 +81,7 @@ export async function deleteMedia(
     .eq("id", mediaId);
 
   if (deleteError) {
-    throw new Error(`Failed to delete media: ${deleteError.message}`);
+    throw new DatabaseError(`Failed to delete media: ${deleteError.message}`);
   }
 
   const path = media.url.split("/listing-media/")[1];

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { DatabaseError } from "../lib/errors";
 import type { Notification } from "../types/database";
 
 export async function getUserNotifications(
@@ -21,7 +22,7 @@ export async function getUserNotifications(
   const { data, error } = await query;
 
   if (error) {
-    throw new Error(`Failed to get notifications: ${error.message}`);
+    throw new DatabaseError(`Failed to get notifications: ${error.message}`);
   }
 
   return data || [];
@@ -39,7 +40,7 @@ export async function markAsRead(
     .eq("user_id", userId);
 
   if (error) {
-    throw new Error(`Failed to mark notification as read: ${error.message}`);
+    throw new DatabaseError(`Failed to mark notification as read: ${error.message}`);
   }
 }
 
@@ -51,7 +52,7 @@ export async function markAllAsRead(supabaseAdmin: SupabaseClient, userId: strin
     .is("read_at", null);
 
   if (error) {
-    throw new Error(`Failed to mark all notifications as read: ${error.message}`);
+    throw new DatabaseError(`Failed to mark all notifications as read: ${error.message}`);
   }
 }
 
@@ -66,7 +67,7 @@ export async function getUnreadCount(
     .is("read_at", null);
 
   if (error) {
-    throw new Error(`Failed to get unread count: ${error.message}`);
+    throw new DatabaseError(`Failed to get unread count: ${error.message}`);
   }
 
   return count || 0;

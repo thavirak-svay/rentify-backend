@@ -1,16 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ForbiddenError, NotFoundError } from "../lib/errors";
+import { DatabaseError, ForbiddenError, NotFoundError } from "../lib/errors";
 import type { CreateListingInput, UpdateListingInput } from "../lib/validators";
 import type { Listing, ListingMedia } from "../types/database";
 
 export async function createListing(
-  supabaseAdmin: SupabaseClient,
+  supabase: SupabaseClient,
   ownerId: string,
   input: CreateListingInput
 ): Promise<Listing> {
   const location = input.location ? `POINT(${input.location.lng} ${input.location.lat})` : null;
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("listings")
     .insert({
       owner_id: ownerId,
@@ -38,38 +38,28 @@ export async function createListing(
     .select()
     .single();
 
-  if (error) {
-    throw new Error(`Failed to create listing: ${error.message}`);
-  }
-
+  if (error) throw new DatabaseError(`Failed to create listing: ${error.message}`);
   return data;
 }
 
-export async function getListing(supabaseAdmin: SupabaseClient, id: string): Promise<Listing> {
-  const { data, error } = await supabaseAdmin
+export async function getListing(supabase: SupabaseClient, id: string): Promise<Listing> {
+  const { data, error } = await supabase
     .from("listings")
     .select("*")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
 
-  if (error || !data) {
-    throw new NotFoundError("Listing not found");
-  }
-
+  if (error || !data) throw new NotFoundError("Listing not found");
   return data;
 }
 
 export async function getListingWithMedia(
-  supabaseAdmin: SupabaseClient,
+  supabase: SupabaseClient,
   id: string
-): Promise<{
-  listing: Listing;
-  media: ListingMedia[];
-}> {
-  const listing = await getListing(supabaseAdmin, id);
-
-  const { data: media } = await supabaseAdmin
+): Promise<{ listing: Listing; media: ListingMedia[] }> {
+  const listing = await getListing(supabase, id);
+  const { data: media } = await supabase
     .from("listing_media")
     .select("*")
     .eq("listing_id", id)
@@ -79,114 +69,84 @@ export async function getListingWithMedia(
 }
 
 export async function updateListing(
-  supabaseAdmin: SupabaseClient,
+  supabase: SupabaseClient,
   id: string,
   userId: string,
   input: UpdateListingInput
 ): Promise<Listing> {
-  const listing = await getListing(supabaseAdmin, id);
-
-  if (listing.owner_id !== userId) {
+  const listing = await getListing(supabase, id);
+  if (listing.owner_id !== userId)
     throw new ForbiddenError("You can only update your own listings");
-  }
 
   const location = input.location
     ? `POINT(${input.location.lng} ${input.location.lat})`
     : undefined;
-
   const updateData: Record<string, unknown> = { ...input };
-  if (location) {
-    updateData.location = location;
-  }
+  if (location) updateData.location = location;
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("listings")
     .update(updateData)
     .eq("id", id)
     .select()
     .single();
 
-  if (error) {
-    throw new Error(`Failed to update listing: ${error.message}`);
-  }
-
+  if (error) throw new DatabaseError(`Failed to update listing: ${error.message}`);
   return data;
 }
 
 export async function deleteListing(
-  supabaseAdmin: SupabaseClient,
+  supabase: SupabaseClient,
   id: string,
   userId: string
 ): Promise<void> {
-  const listing = await getListing(supabaseAdmin, id);
-
-  if (listing.owner_id !== userId) {
+  const listing = await getListing(supabase, id);
+  if (listing.owner_id !== userId)
     throw new ForbiddenError("You can only delete your own listings");
-  }
 
-  const { error } = await supabaseAdmin
+  const { error } = await supabase
     .from("listings")
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id);
 
-  if (error) {
-    throw new Error(`Failed to delete listing: ${error.message}`);
-  }
+  if (error) throw new DatabaseError(`Failed to delete listing: ${error.message}`);
 }
 
 export async function publishListing(
-  supabaseAdmin: SupabaseClient,
+  supabase: SupabaseClient,
   id: string,
   userId: string
 ): Promise<Listing> {
-  const listing = await getListing(supabaseAdmin, id);
-
-  if (listing.owner_id !== userId) {
+  const listing = await getListing(supabase, id);
+  if (listing.owner_id !== userId)
     throw new ForbiddenError("You can only publish your own listings");
-  }
+  if (listing.status !== "draft") throw new Error("Only draft listings can be published");
 
-  if (listing.status !== "draft") {
-    throw new Error("Only draft listings can be published");
-  }
-
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("listings")
-    .update({
-      status: "active",
-      published_at: new Date().toISOString(),
-    })
+    .update({ status: "active", published_at: new Date().toISOString() })
     .eq("id", id)
     .select()
     .single();
 
-  if (error) {
-    throw new Error(`Failed to publish listing: ${error.message}`);
-  }
-
+  if (error) throw new DatabaseError(`Failed to publish listing: ${error.message}`);
   return data;
 }
 
 export async function getUserListings(
-  supabaseAdmin: SupabaseClient,
+  supabase: SupabaseClient,
   userId: string,
   status?: string
 ): Promise<Listing[]> {
-  let query = supabaseAdmin
+  let query = supabase
     .from("listings")
     .select("*")
     .eq("owner_id", userId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  if (status) {
-    query = query.eq("status", status);
-  }
-
+  if (status) query = query.eq("status", status);
   const { data, error } = await query;
-
-  if (error) {
-    throw new Error(`Failed to get user listings: ${error.message}`);
-  }
-
+  if (error) throw new DatabaseError(`Failed to get listings: ${error.message}`);
   return data || [];
 }

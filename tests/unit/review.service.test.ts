@@ -216,6 +216,13 @@ describe("Review Service", () => {
       const result = await reviewService.getListingReviews(mockClient, "listing-123");
       expect(result).toHaveLength(0);
     });
+
+    test("should throw error when fetch fails", async () => {
+      const mockClient = createMockClient("reviews", null, { message: "DB error" });
+      await expect(reviewService.getListingReviews(mockClient, "listing-123")).rejects.toThrow(
+        "Failed to get reviews: DB error"
+      );
+    });
   });
 
   describe("getUserReviews", () => {

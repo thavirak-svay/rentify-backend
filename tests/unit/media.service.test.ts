@@ -139,5 +139,28 @@ describe("Media Service", () => {
         mediaService.deleteMedia(mockClient, "owner-123", "nonexistent")
       ).rejects.toThrow("Media not found");
     });
+
+    test("should throw error when delete fails", async () => {
+      const mockClient = {
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              single: () =>
+                Promise.resolve({
+                  data: { id: "media-1", listing_id: "listing-123", url: "https://example.com/1.jpg", listings: { owner_id: "owner-123" } },
+                  error: null,
+                }),
+            }),
+          }),
+          delete: () => ({
+            eq: () => Promise.resolve({ data: null, error: { message: "Delete failed" } }),
+          }),
+        }),
+      } as unknown as SupabaseClient;
+
+      await expect(
+        mediaService.deleteMedia(mockClient, "owner-123", "media-1")
+      ).rejects.toThrow("Failed to delete media: Delete failed");
+    });
   });
 });

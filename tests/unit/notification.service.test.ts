@@ -4,23 +4,25 @@ import * as notificationService from "../../src/services/notification.service";
 
 describe("Notification Service", () => {
   const createMockClient = (queryMock: {
-    select?: () => Promise<{ data: unknown[]; error: unknown }>;
+    select?: () => Promise<{ data: unknown[] | null; error: unknown }>;
     update?: () => Promise<{ error: unknown }>;
   }) => {
+    const selectFn = queryMock.select ?? (() => Promise.resolve({ data: [], error: null }));
+    const updateFn = queryMock.update ?? (() => Promise.resolve({ error: null }));
     return {
       from: () => ({
         select: () => ({
           eq: () => ({
             order: () => ({
-              limit: () => queryMock.select?.() || Promise.resolve({ data: [], error: null }),
-              is: () => queryMock.select?.() || Promise.resolve({ data: [], error: null }),
+              limit: () => selectFn(),
             }),
-            is: () => queryMock.select?.() || Promise.resolve({ data: [], error: null }),
           }),
         }),
         update: () => ({
-          eq: () => queryMock.update?.() || Promise.resolve({ error: null }),
-          is: () => queryMock.update?.() || Promise.resolve({ error: null }),
+          eq: () => ({
+            eq: () => updateFn(),
+            is: () => updateFn(),
+          }),
         }),
       }),
     } as unknown as SupabaseClient;
@@ -41,13 +43,23 @@ describe("Notification Service", () => {
     });
 
     test("should return notifications with unread only filter", async () => {
-      const mockClient = createMockClient({
-        select: () =>
-          Promise.resolve({
-            data: [{ id: "notif-1", title: "Test", body: "Test body", read_at: null }],
-            error: null,
+      const mockClient = {
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                limit: () => ({
+                  is: () =>
+                    Promise.resolve({
+                      data: [{ id: "notif-1", title: "Test", body: "Test body", read_at: null }],
+                      error: null,
+                    }),
+                }),
+              }),
+            }),
           }),
-      });
+        }),
+      } as unknown as SupabaseClient;
 
       const result = await notificationService.getUserNotifications(
         mockClient,
@@ -59,13 +71,17 @@ describe("Notification Service", () => {
     });
 
     test("should throw error when fetch fails", async () => {
-      const mockClient = createMockClient({
-        select: () =>
-          Promise.resolve({
-            data: null,
-            error: { message: "DB error" },
+      const mockClient = {
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                limit: () => Promise.resolve({ data: null, error: { message: "DB error" } }),
+              }),
+            }),
           }),
-      });
+        }),
+      } as unknown as SupabaseClient;
 
       await expect(
         notificationService.getUserNotifications(mockClient, "user-123")

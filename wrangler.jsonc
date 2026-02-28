@@ -5,8 +5,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "minify": true,
   "observability": {
-    "enabled": true,
-    "log_level": "info"
+    "enabled": true
   },
   "$schema": "node_modules/wrangler/schema.json"
 }

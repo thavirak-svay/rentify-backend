@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { NotFoundError } from "../lib/errors";
+import { DatabaseError, NotFoundError } from "../lib/errors";
 import type { Profile } from "../types/database";
 
 export const updateProfileSchema = z.object({
@@ -16,37 +16,79 @@ export const updateProfileSchema = z.object({
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
-export async function getProfile(supabaseAdmin: SupabaseClient, userId: string): Promise<Profile> {
-  const { data: profile, error } = await supabaseAdmin
-    .from("profiles")
-    .select()
-    .eq("id", userId)
-    .single();
+export interface UserRepository {
+  findById(id: string): Promise<Profile>;
+  findPublicById(id: string): Promise<Partial<Profile>>;
+  update(id: string, input: UpdateProfileInput): Promise<Profile>;
+  updateLastActive(id: string): Promise<void>;
+}
 
-  if (error || !profile) {
-    throw new NotFoundError("Profile not found");
+export function createUserRepository(supabaseAdmin: SupabaseClient): UserRepository {
+  async function findById(id: string): Promise<Profile> {
+    const { data, error } = await supabaseAdmin.from("profiles").select().eq("id", id).single();
+
+    if (error || !data) {
+      throw new NotFoundError("Profile not found");
+    }
+
+    return data;
   }
 
-  return profile;
+  async function findPublicById(id: string): Promise<Partial<Profile>> {
+    const profile = await findById(id);
+
+    return {
+      id: profile.id,
+      display_name: profile.display_name,
+      avatar_url: profile.avatar_url,
+      bio: profile.bio,
+      rating_avg: profile.rating_avg,
+      rating_count: profile.rating_count,
+      completed_rentals: profile.completed_rentals,
+      identity_status: profile.identity_status,
+      created_at: profile.created_at,
+    };
+  }
+
+  async function update(id: string, input: UpdateProfileInput): Promise<Profile> {
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .update(input)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new DatabaseError(`Failed to update profile: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  async function updateLastActive(id: string): Promise<void> {
+    await supabaseAdmin
+      .from("profiles")
+      .update({ last_active_at: new Date().toISOString() })
+      .eq("id", id);
+  }
+
+  return {
+    findById,
+    findPublicById,
+    update,
+    updateLastActive,
+  };
+}
+
+export async function getProfile(supabaseAdmin: SupabaseClient, userId: string): Promise<Profile> {
+  return createUserRepository(supabaseAdmin).findById(userId);
 }
 
 export async function getPublicProfile(
   supabaseAdmin: SupabaseClient,
   userId: string
 ): Promise<Partial<Profile>> {
-  const profile = await getProfile(supabaseAdmin, userId);
-
-  return {
-    id: profile.id,
-    display_name: profile.display_name,
-    avatar_url: profile.avatar_url,
-    bio: profile.bio,
-    rating_avg: profile.rating_avg,
-    rating_count: profile.rating_count,
-    completed_rentals: profile.completed_rentals,
-    identity_status: profile.identity_status,
-    created_at: profile.created_at,
-  };
+  return createUserRepository(supabaseAdmin).findPublicById(userId);
 }
 
 export async function updateProfile(
@@ -54,26 +96,12 @@ export async function updateProfile(
   userId: string,
   input: UpdateProfileInput
 ): Promise<Profile> {
-  const { data, error } = await supabaseAdmin
-    .from("profiles")
-    .update(input)
-    .eq("id", userId)
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to update profile: ${error.message}`);
-  }
-
-  return data;
+  return createUserRepository(supabaseAdmin).update(userId, input);
 }
 
 export async function updateLastActive(
   supabaseAdmin: SupabaseClient,
   userId: string
 ): Promise<void> {
-  await supabaseAdmin
-    .from("profiles")
-    .update({ last_active_at: new Date().toISOString() })
-    .eq("id", userId);
+  return createUserRepository(supabaseAdmin).updateLastActive(userId);
 }
