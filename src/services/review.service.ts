@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DatabaseError, ForbiddenError, NotFoundError, ValidationError } from "../lib/errors";
 import type { Review } from "../types/database";
@@ -107,23 +106,29 @@ export function createReviewRepository(supabaseAdmin: SupabaseClient): ReviewRep
     }
 
     notifyReviewReceived(supabaseAdmin, targetId, reviewerId, review).catch((err) =>
-      Sentry.logger.warn("Failed to send review notification", {
-        reviewId: review.id,
-        reviewerId,
-        targetId,
-        error: err instanceof Error ? err.message : "Unknown error",
-      })
+      console.warn(
+        "Failed to send review notification",
+        JSON.stringify({
+          reviewId: review.id,
+          reviewerId,
+          targetId,
+          error: err instanceof Error ? err.message : "Unknown error",
+        })
+      )
     );
 
-    Sentry.logger.info("Review created", {
-      reviewId: review.id,
-      bookingId: input.booking_id,
-      listingId: booking.listing_id,
-      reviewerId,
-      targetId,
-      rating: input.rating,
-      hasComment: !!input.comment,
-    });
+    console.log(
+      "Review created",
+      JSON.stringify({
+        reviewId: review.id,
+        bookingId: input.booking_id,
+        listingId: booking.listing_id,
+        reviewerId,
+        targetId,
+        rating: input.rating,
+        hasComment: !!input.comment,
+      })
+    );
 
     return review;
   }

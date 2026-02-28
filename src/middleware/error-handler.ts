@@ -2,7 +2,6 @@ import * as Sentry from "@sentry/cloudflare";
 import type { Context } from "hono";
 import { ZodError } from "zod";
 import { isAppError, RateLimitError } from "../lib/errors";
-import { log } from "./logger";
 
 export async function errorHandler(err: Error, c: Context) {
   Sentry.captureException(err, {
@@ -18,9 +17,14 @@ export async function errorHandler(err: Error, c: Context) {
   const requestId = c.get("requestId") as string | undefined;
 
   if (err instanceof ZodError) {
-    log.warn(
-      { path: c.req.path, method: c.req.method, request_id: requestId, issues: err.issues },
-      "Validation error"
+    console.warn(
+      "Validation error",
+      JSON.stringify({
+        path: c.req.path,
+        method: c.req.method,
+        request_id: requestId,
+        issues: err.issues,
+      })
     );
 
     return c.json(
@@ -40,14 +44,14 @@ export async function errorHandler(err: Error, c: Context) {
   }
 
   if (err instanceof RateLimitError) {
-    log.warn(
-      {
+    console.warn(
+      "Rate limit exceeded",
+      JSON.stringify({
         path: c.req.path,
         method: c.req.method,
         request_id: requestId,
         retryAfter: err.details?.retryAfter,
-      },
-      "Rate limit exceeded"
+      })
     );
 
     const responseBody: Record<string, unknown> = {
@@ -69,10 +73,15 @@ export async function errorHandler(err: Error, c: Context) {
   }
 
   if (isAppError(err)) {
-    const logLevel = err.statusCode >= 500 ? "error" : "warn";
-    log[logLevel](
-      { path: c.req.path, method: c.req.method, request_id: requestId, code: err.code },
-      `Application error: ${err.message}`
+    const logFn = err.statusCode >= 500 ? console.error : console.warn;
+    logFn(
+      `Application error: ${err.message}`,
+      JSON.stringify({
+        path: c.req.path,
+        method: c.req.method,
+        request_id: requestId,
+        code: err.code,
+      })
     );
 
     const responseBody: Record<string, unknown> = {
@@ -92,15 +101,14 @@ export async function errorHandler(err: Error, c: Context) {
 
   const isProduction = c.env?.NODE_ENV === "production";
 
-  log.error(
-    {
-      err,
+  console.error(
+    `Unhandled error: ${err.message}`,
+    JSON.stringify({
       path: c.req.path,
       method: c.req.method,
       request_id: requestId,
       stack: err.stack,
-    },
-    `Unhandled error: ${err.message}`
+    })
   );
 
   const errorResponse: Record<string, unknown> = {

@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DatabaseError, ForbiddenError, NotFoundError } from "../lib/errors";
 import type { Message, MessageThread } from "../types/database";
@@ -101,21 +100,27 @@ export function createMessageRepository(supabaseAdmin: SupabaseClient): MessageR
 
     const otherParticipants = thread.participant_ids.filter((id) => id !== senderId);
     notifyParticipants(supabaseAdmin, otherParticipants, senderId, message).catch((err) =>
-      Sentry.logger.warn("Failed to send message notifications", {
-        threadId,
-        messageId: message.id,
-        senderId,
-        participantCount: otherParticipants.length,
-        error: err instanceof Error ? err.message : "Unknown error",
-      })
+      console.warn(
+        "Failed to send message notifications",
+        JSON.stringify({
+          threadId,
+          messageId: message.id,
+          senderId,
+          participantCount: otherParticipants.length,
+          error: err instanceof Error ? err.message : "Unknown error",
+        })
+      )
     );
 
-    Sentry.logger.info("Message sent", {
-      messageId: message.id,
-      threadId,
-      senderId,
-      recipientCount: otherParticipants.length,
-    });
+    console.log(
+      "Message sent",
+      JSON.stringify({
+        messageId: message.id,
+        threadId,
+        senderId,
+        recipientCount: otherParticipants.length,
+      })
+    );
 
     return message;
   }

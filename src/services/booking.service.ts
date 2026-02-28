@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../config/env";
 import { validateTransition } from "../lib/booking-machine";
@@ -113,10 +112,10 @@ export async function createBooking(
     .single();
 
   if (listingError || !listing) {
-    Sentry.logger.warn("Booking failed - listing not found", {
-      listingId: input.listing_id,
-      renterId,
-    });
+    console.warn(
+      "Booking failed - listing not found",
+      JSON.stringify({ listingId: input.listing_id, renterId })
+    );
     throw new NotFoundError("Listing not found or not available");
   }
 
@@ -130,13 +129,16 @@ export async function createBooking(
     .or(`start_time.lt.${input.end_time},end_time.gt.${input.start_time}`);
 
   if (conflicts && conflicts.length > 0) {
-    Sentry.logger.warn("Booking failed - date conflict", {
-      listingId: input.listing_id,
-      renterId,
-      startTime: input.start_time,
-      endTime: input.end_time,
-      conflictCount: conflicts.length,
-    });
+    console.warn(
+      "Booking failed - date conflict",
+      JSON.stringify({
+        listingId: input.listing_id,
+        renterId,
+        startTime: input.start_time,
+        endTime: input.end_time,
+        conflictCount: conflicts.length,
+      })
+    );
     throw new ConflictError("Listing is not available for the selected dates");
   }
 
@@ -207,13 +209,16 @@ export async function createBooking(
   try {
     const paymentResult = await paymentService.createPreAuth(env, paywayBooking, pricing);
     checkoutUrl = paymentResult.checkout_url;
-    Sentry.logger.info("Payment pre-auth initiated", {
-      bookingId: booking.id,
-      listingId: input.listing_id,
-      renterId,
-      totalAmount: pricing.total_renter_pays,
-      currency: listing.currency,
-    });
+    console.log(
+      "Payment pre-auth initiated",
+      JSON.stringify({
+        bookingId: booking.id,
+        listingId: input.listing_id,
+        renterId,
+        totalAmount: pricing.total_renter_pays,
+        currency: listing.currency,
+      })
+    );
 
     await supabaseAdmin.from("transactions").insert({
       booking_id: booking.id,
@@ -224,22 +229,25 @@ export async function createBooking(
       payway_tran_id: paymentResult.payway_tran_id,
     });
   } catch (e) {
-    console.error("PayWay pre-auth failed:", e);
+    console.error("PayWay pre-auth failed", e);
     checkoutUrl = "";
   }
 
-  Sentry.logger.info("Booking created successfully", {
-    bookingId: booking.id,
-    listingId: input.listing_id,
-    renterId,
-    ownerId: listing.owner_id,
-    startTime: input.start_time,
-    endTime: input.end_time,
-    totalAmount: pricing.total_renter_pays,
-    currency: listing.currency,
-    status: booking.status,
-    hasCheckoutUrl: !!checkoutUrl,
-  });
+  console.log(
+    "Booking created successfully",
+    JSON.stringify({
+      bookingId: booking.id,
+      listingId: input.listing_id,
+      renterId,
+      ownerId: listing.owner_id,
+      startTime: input.start_time,
+      endTime: input.end_time,
+      totalAmount: pricing.total_renter_pays,
+      currency: listing.currency,
+      status: booking.status,
+      hasCheckoutUrl: !!checkoutUrl,
+    })
+  );
 
   return {
     booking,
@@ -266,12 +274,12 @@ export async function approveBooking(
         .from("transactions")
         .update({ status: "completed", processed_at: new Date().toISOString() })
         .eq("payway_tran_id", transaction.payway_tran_id);
-      Sentry.logger.info("Payment captured successfully", {
-        bookingId,
-        transactionId: transaction.payway_tran_id,
-      });
+      console.log(
+        "Payment captured successfully",
+        JSON.stringify({ bookingId, transactionId: transaction.payway_tran_id })
+      );
     } catch (e) {
-      console.error("PayWay capture failed:", e);
+      console.error("PayWay capture failed", e);
     }
   }
 
@@ -289,12 +297,15 @@ export async function approveBooking(
     throw new DatabaseError(`Failed to approve booking: ${updateError.message}`);
   }
 
-  Sentry.logger.info("Booking approved", {
-    bookingId,
-    ownerId: userId,
-    totalAmount: booking.total_amount,
-    currency: booking.currency,
-  });
+  console.log(
+    "Booking approved",
+    JSON.stringify({
+      bookingId,
+      ownerId: userId,
+      totalAmount: booking.total_amount,
+      currency: booking.currency,
+    })
+  );
 
   return updated;
 }
@@ -318,12 +329,12 @@ export async function declineBooking(
         .from("transactions")
         .update({ status: "cancelled", processed_at: new Date().toISOString() })
         .eq("payway_tran_id", transaction.payway_tran_id);
-      Sentry.logger.info("Payment pre-auth cancelled", {
-        bookingId,
-        transactionId: transaction.payway_tran_id,
-      });
+      console.log(
+        "Payment pre-auth cancelled",
+        JSON.stringify({ bookingId, transactionId: transaction.payway_tran_id })
+      );
     } catch (e) {
-      console.error("PayWay cancel failed:", e);
+      console.error("PayWay cancel failed", e);
     }
   }
 
@@ -341,10 +352,7 @@ export async function declineBooking(
     throw new DatabaseError(`Failed to decline booking: ${updateError.message}`);
   }
 
-  Sentry.logger.info("Booking declined", {
-    bookingId,
-    ownerId: userId,
-  });
+  console.log("Booking declined", JSON.stringify({ bookingId, ownerId: userId }));
 
   return updated;
 }
@@ -376,13 +384,16 @@ export async function cancelBooking(
         .from("transactions")
         .update({ status: txStatus, processed_at: new Date().toISOString() })
         .eq("payway_tran_id", transaction.payway_tran_id);
-      Sentry.logger.info(isRefund ? "Payment refunded" : "Payment cancelled", {
-        bookingId,
-        transactionId: transaction.payway_tran_id,
-        bookingStatus: booking.status,
-      });
+      console.log(
+        isRefund ? "Payment refunded" : "Payment cancelled",
+        JSON.stringify({
+          bookingId,
+          transactionId: transaction.payway_tran_id,
+          bookingStatus: booking.status,
+        })
+      );
     } catch (e) {
-      console.error("PayWay cancel/refund failed:", e);
+      console.error("PayWay cancel/refund failed", e);
     }
   }
 
@@ -402,12 +413,15 @@ export async function cancelBooking(
     throw new DatabaseError(`Failed to cancel booking: ${updateError.message}`);
   }
 
-  Sentry.logger.info("Booking cancelled", {
-    bookingId,
-    cancelledBy: userId,
-    previousStatus: booking.status,
-    cancellationReason: reason,
-  });
+  console.log(
+    "Booking cancelled",
+    JSON.stringify({
+      bookingId,
+      cancelledBy: userId,
+      previousStatus: booking.status,
+      cancellationReason: reason,
+    })
+  );
 
   return updated;
 }
@@ -437,11 +451,10 @@ export async function activateBooking(
     throw new DatabaseError(`Failed to activate booking: ${updateError.message}`);
   }
 
-  Sentry.logger.info("Booking activated", {
-    bookingId,
-    totalAmount: booking.total_amount,
-    currency: booking.currency,
-  });
+  console.log(
+    "Booking activated",
+    JSON.stringify({ bookingId, totalAmount: booking.total_amount, currency: booking.currency })
+  );
 
   return updated;
 }
@@ -469,13 +482,16 @@ export async function completeBooking(
     throw new DatabaseError(`Failed to complete booking: ${updateError.message}`);
   }
 
-  Sentry.logger.info("Booking completed", {
-    bookingId,
-    renterId: booking.renter_id,
-    ownerId: booking.owner_id,
-    totalAmount: booking.total_amount,
-    currency: booking.currency,
-  });
+  console.log(
+    "Booking completed",
+    JSON.stringify({
+      bookingId,
+      renterId: booking.renter_id,
+      ownerId: booking.owner_id,
+      totalAmount: booking.total_amount,
+      currency: booking.currency,
+    })
+  );
 
   return updated;
 }

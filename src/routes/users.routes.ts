@@ -4,7 +4,6 @@ import { z } from "zod";
 import type { Env } from "../config/env";
 import { bearerAuth, dataResponse, uuidParam } from "../lib/openapi-helpers";
 import { ProfileSchema, PublicProfileSchema } from "../lib/schemas";
-import { log } from "../middleware/logger";
 import { optionalAuth } from "../middleware/optional-auth";
 import * as userService from "../services/user.service";
 import type { Variables } from "../types/variables";
@@ -29,7 +28,7 @@ users.get(
     const data = await userService.getProfile(supabaseAdmin, userId);
     userService
       .updateLastActive(supabaseAdmin, userId)
-      .catch((err) => log.error({ err, userId }, "Failed to update last active"));
+      .catch((err) => console.error("Failed to update last active", err));
     return c.json({ data });
   }
 );
