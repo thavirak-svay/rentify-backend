@@ -51,7 +51,7 @@ bun run db:reset
 bun run dev
 ```
 
-The API will be available at http://localhost:8080
+The API will be available at http://localhost:8787
 
 ## Development
 
@@ -84,7 +84,7 @@ src/
 Beautiful, interactive API documentation available at:
 
 ```
-http://localhost:8080/docs
+http://localhost:8787/docs
 ```
 
 Features:
@@ -99,7 +99,7 @@ Features:
 Raw OpenAPI 3.1 spec available at:
 
 ```
-http://localhost:8080/openapi.json
+http://localhost:8787/openapi.json
 ```
 
 Use this to:
@@ -164,27 +164,29 @@ See [SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) for:
 
 ## Deployment
 
-### Railway Deployment
+### Cloudflare Workers
 
-See [RAILWAY_DEPLOYMENT.md](docs/RAILWAY_DEPLOYMENT.md) for complete deployment guide.
+Deploy to Cloudflare Workers:
 
-**Quick Deploy:**
 ```bash
-# Install Railway CLI
-npm install -g @railway/cli
+# Install Wrangler CLI
+npm install -g wrangler
 
-# Login
-railway login
+# Login to Cloudflare
+wrangler login
 
-# Deploy
-railway up
+# Deploy to production
+bun run deploy
+
+# Deploy to staging
+bun run deploy:staging
 ```
 
-Your API will be live at: `https://your-app.up.railway.app`
+Your API will be live at: `https://rentify-api.thaavirak.workers.dev`
 
 ### Production Checklist
 
-- [ ] Environment variables set in Railway
+- [ ] Environment variables set in Cloudflare dashboard
 - [ ] Database migrations run on Supabase
 - [ ] CORS configured for production frontend
 - [ ] PayWay callback URL updated
