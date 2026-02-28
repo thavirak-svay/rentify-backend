@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/node";
+import * as Sentry from "@sentry/cloudflare";
 import type { Context } from "hono";
 import { ZodError } from "zod";
 import { isAppError, RateLimitError } from "../lib/errors";
