@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { describeRoute, validator } from "hono-openapi";
 import { z } from "zod";
 import type { Env } from "../config/env";
+import { AuthenticationError } from "../lib/errors";
 import {
   bearerAuth,
   dataArrayResponse,
@@ -45,7 +46,7 @@ bookings.post(
     const supabaseAdmin = c.get("supabaseAdmin");
     const env = c.get("env");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const input = c.req.valid("json");
     const result = await bookingService.createBooking(supabaseAdmin, env, userId, input);
@@ -65,7 +66,7 @@ bookings.get(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid("param");
     const data = await bookingService.getBooking(supabaseAdmin, id, userId);
@@ -85,7 +86,7 @@ bookings.get(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { role } = c.req.valid("query");
     const data = await bookingService.getUserBookings(supabaseAdmin, userId, role);
@@ -106,7 +107,7 @@ bookings.post(
     const supabaseAdmin = c.get("supabaseAdmin");
     const env = c.get("env");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid("param");
     const data = await bookingService.approveBooking(supabaseAdmin, env, id, userId);
@@ -127,7 +128,7 @@ bookings.post(
     const supabaseAdmin = c.get("supabaseAdmin");
     const env = c.get("env");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid("param");
     const data = await bookingService.declineBooking(supabaseAdmin, env, id, userId);
@@ -149,7 +150,7 @@ bookings.post(
     const supabaseAdmin = c.get("supabaseAdmin");
     const env = c.get("env");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid("param");
     const { reason } = c.req.valid("json");

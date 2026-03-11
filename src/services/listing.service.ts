@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DatabaseError, ForbiddenError, NotFoundError } from "../lib/errors";
+import { DatabaseError, ForbiddenError, NotFoundError, ValidationError } from "../lib/errors";
 import type { CreateListingInput, UpdateListingInput } from "../lib/validators";
 import type { Listing, ListingMedia } from "../types/database";
 
@@ -121,7 +121,7 @@ export async function publishListing(
   const listing = await getListing(supabase, id);
   if (listing.owner_id !== userId)
     throw new ForbiddenError("You can only publish your own listings");
-  if (listing.status !== "draft") throw new Error("Only draft listings can be published");
+  if (listing.status !== "draft") throw new ValidationError("Only draft listings can be published");
 
   const { data, error } = await supabase
     .from("listings")

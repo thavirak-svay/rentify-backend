@@ -114,7 +114,7 @@ export async function errorHandler(err: Error, c: Context) {
   const errorResponse: Record<string, unknown> = {
     error: {
       code: "INTERNAL_ERROR",
-      message: isProduction ? "An unexpected error occurred" : err.message,
+      message: err.message,
       request_id: requestId,
     },
   };

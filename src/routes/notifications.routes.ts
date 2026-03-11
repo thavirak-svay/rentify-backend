@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { describeRoute, validator } from "hono-openapi";
 import { z } from "zod";
 import type { Env } from "../config/env";
+import { AuthenticationError } from "../lib/errors";
 import {
   bearerAuth,
   dataArrayResponse,
@@ -36,7 +37,7 @@ notifications.get(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { limit, unread } = c.req.valid("query");
     const data = await notificationService.getUserNotifications(
@@ -62,7 +63,7 @@ notifications.get(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const count = await notificationService.getUnreadCount(supabaseAdmin, userId);
     return c.json({ data: { count } });
@@ -81,7 +82,7 @@ notifications.post(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid("param");
     await notificationService.markAsRead(supabaseAdmin, id, userId);
@@ -100,7 +101,7 @@ notifications.post(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     await notificationService.markAllAsRead(supabaseAdmin, userId);
     return c.json({ success: true });

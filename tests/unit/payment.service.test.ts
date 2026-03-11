@@ -66,7 +66,7 @@ describe("Payment Service", () => {
       };
 
       await expect(paymentService.createPreAuth(mockEnv, booking, pricing)).rejects.toThrow(
-        "PayWay pre-auth failed: 500 - Internal Server Error"
+        "PayWay service error: pre-auth failed: 500 - Internal Server Error"
       );
     });
   });
@@ -88,7 +88,7 @@ describe("Payment Service", () => {
       globalThis.fetch = mockFetch;
 
       await expect(paymentService.captureWithPayout(mockEnv, "test-tran-id")).rejects.toThrow(
-        "PayWay capture failed: Capture failed"
+        "PayWay service error: capture failed: Capture failed"
       );
     });
 
@@ -104,7 +104,7 @@ describe("Payment Service", () => {
       globalThis.fetch = mockFetch;
 
       await expect(paymentService.captureWithPayout(mockEnv, "test-tran-id")).rejects.toThrow(
-        "PayWay capture failed: 500 - Server Error"
+        "PayWay service error: capture failed: 500 - Server Error"
       );
     });
   });
@@ -122,7 +122,7 @@ describe("Payment Service", () => {
       globalThis.fetch = mockFetch;
 
       await expect(paymentService.cancelPreAuth(mockEnv, "test-tran-id")).rejects.toThrow(
-        "PayWay cancel failed: 500 - Server Error"
+        "PayWay service error: cancel failed: 500 - Server Error"
       );
     });
   });
@@ -140,7 +140,7 @@ describe("Payment Service", () => {
       globalThis.fetch = mockFetch;
 
       await expect(paymentService.refundPayment(mockEnv, "test-tran-id")).rejects.toThrow(
-        "PayWay refund failed: 500 - Server Error"
+        "PayWay service error: refund failed: 500 - Server Error"
       );
     });
   });
@@ -157,7 +157,7 @@ describe("Payment Service", () => {
       globalThis.fetch = mockFetch;
 
       await expect(paymentService.checkTransaction(mockEnv, "test-tran-id")).rejects.toThrow(
-        "PayWay check transaction failed: Internal Server Error"
+        "PayWay service error: check transaction failed: Internal Server Error"
       );
     });
 

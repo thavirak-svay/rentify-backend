@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { describeRoute, validator } from "hono-openapi";
 import { z } from "zod";
 import type { Env } from "../config/env";
+import { AuthenticationError } from "../lib/errors";
 import { bearerAuth, dataResponse, uuidParam } from "../lib/openapi-helpers";
 import { ProfileSchema, PublicProfileSchema } from "../lib/schemas";
 import { optionalAuth } from "../middleware/optional-auth";
@@ -23,7 +24,7 @@ users.get(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const data = await userService.getProfile(supabaseAdmin, userId);
     userService
@@ -56,7 +57,7 @@ users.patch(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const input = c.req.valid("json");
     const data = await userService.updateProfile(supabaseAdmin, userId, input);
