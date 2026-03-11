@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { describeRoute, validator } from "hono-openapi";
 import { z } from "zod";
 import type { Env } from "../config/env";
+import { ForbiddenError, NotFoundError, ValidationError } from "../lib/errors";
 import { dataResponse, jsonContent, successResponse } from "../lib/openapi-helpers";
 import { optionalAuth } from "../middleware/optional-auth";
 import * as paymentService from "../services/payment.service";
@@ -37,7 +38,7 @@ payments.post(
     const payload = c.req.valid("json");
 
     if (!paymentService.verifyCallbackHash(env, payload)) {
-      throw new Error("Invalid hash");
+      throw new ForbiddenError("Invalid payment callback hash");
     }
 
     const { tran_id, status } = payload;
@@ -89,7 +90,7 @@ payments.get(
       .single();
 
     if (error || !transaction?.payway_tran_id) {
-      throw new Error("Transaction not found");
+      throw new NotFoundError("Transaction not found");
     }
 
     const data = await paymentService.checkTransaction(env, transaction.payway_tran_id);
@@ -119,11 +120,11 @@ payments.post(
       .single();
 
     if (error || !transaction) {
-      throw new Error("Transaction not found");
+      throw new NotFoundError("Transaction not found");
     }
 
     if (transaction.status !== "completed") {
-      throw new Error("Transaction cannot be refunded");
+      throw new ValidationError("Transaction cannot be refunded");
     }
 
     const result = await paymentService.refundPayment(env, transaction.payway_tran_id);

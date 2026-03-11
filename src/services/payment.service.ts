@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Env } from "../config/env";
+import { ExternalServiceError } from "../lib/errors";
 
 interface PayWayStatus {
   code: string;
@@ -134,7 +135,7 @@ export async function createPreAuth(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`PayWay pre-auth failed: ${response.status} - ${errorText}`);
+    throw new ExternalServiceError("PayWay", `pre-auth failed: ${response.status} - ${errorText}`);
   }
 
   const checkoutHtml = await response.text();
@@ -175,13 +176,16 @@ export async function captureWithPayout(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`PayWay capture failed: ${response.status} - ${errorText}`);
+    throw new ExternalServiceError("PayWay", `capture failed: ${response.status} - ${errorText}`);
   }
 
   const data = (await response.json()) as PayWayCaptureResponse;
 
   if (data.status?.code !== "00") {
-    throw new Error(`PayWay capture failed: ${data.status?.message || "Unknown error"}`);
+    throw new ExternalServiceError(
+      "PayWay",
+      `capture failed: ${data.status?.message || "Unknown error"}`
+    );
   }
 
   return {
@@ -219,7 +223,7 @@ export async function cancelPreAuth(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`PayWay cancel failed: ${response.status} - ${errorText}`);
+    throw new ExternalServiceError("PayWay", `cancel failed: ${response.status} - ${errorText}`);
   }
 
   const data = (await response.json()) as PayWayCancelResponse;
@@ -259,7 +263,7 @@ export async function refundPayment(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`PayWay refund failed: ${response.status} - ${errorText}`);
+    throw new ExternalServiceError("PayWay", `refund failed: ${response.status} - ${errorText}`);
   }
 
   const data = (await response.json()) as PayWayRefundResponse;
@@ -298,7 +302,7 @@ export async function checkTransaction(
   );
 
   if (!response.ok) {
-    throw new Error(`PayWay check transaction failed: ${response.statusText}`);
+    throw new ExternalServiceError("PayWay", `check transaction failed: ${response.statusText}`);
   }
 
   const data = (await response.json()) as PayWayCheckResponse;

@@ -3,6 +3,7 @@ import { describeRoute, validator } from "hono-openapi";
 
 import { z } from "zod";
 import type { Env } from "../config/env";
+import { AuthenticationError } from "../lib/errors";
 import {
   bearerAuth,
   dataArrayResponse,
@@ -33,7 +34,7 @@ listings.post(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const input = c.req.valid("json");
     const data = await listingService.createListing(supabaseAdmin, userId, input);
@@ -70,7 +71,7 @@ listings.patch(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid("param");
     const input = c.req.valid("json");
@@ -91,7 +92,7 @@ listings.delete(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid("param");
     await listingService.deleteListing(supabaseAdmin, id, userId);
@@ -111,7 +112,7 @@ listings.post(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid("param");
     const data = await listingService.publishListing(supabaseAdmin, id, userId);
@@ -136,7 +137,7 @@ listings.get(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { status } = c.req.valid("query");
     const data = await listingService.getUserListings(supabaseAdmin, userId, status);

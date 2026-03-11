@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { describeRoute, validator } from "hono-openapi";
 import { z } from "zod";
 import type { Env } from "../config/env";
+import { AuthenticationError } from "../lib/errors";
 import {
   bearerAuth,
   dataArrayResponse,
@@ -36,7 +37,7 @@ threads.post(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const input = c.req.valid("json");
     const data = await messageService.createThread(supabaseAdmin, userId, input);
@@ -55,7 +56,7 @@ threads.get(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const data = await messageService.getUserThreads(supabaseAdmin, userId);
     return c.json({ data });
@@ -74,7 +75,7 @@ threads.get(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid("param");
     const data = await messageService.getThread(supabaseAdmin, id, userId);
@@ -101,7 +102,7 @@ threads.get(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid("param");
     const { limit, before } = c.req.valid("query");
@@ -123,7 +124,7 @@ threads.post(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid("param");
     const { content } = c.req.valid("json");
@@ -144,7 +145,7 @@ threads.post(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid("param");
     await messageService.markMessagesAsRead(supabaseAdmin, id, userId);

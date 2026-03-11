@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { describeRoute, validator } from "hono-openapi";
 import { z } from "zod";
 import type { Env } from "../config/env";
+import { AuthenticationError } from "../lib/errors";
 import {
   bearerAuth,
   dataResponse,
@@ -30,7 +31,7 @@ media.post(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { file_name, content_type } = c.req.valid("json");
     const data = await mediaService.createUploadUrl(supabaseAdmin, userId, file_name, content_type);
@@ -56,7 +57,7 @@ media.post(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { listingId } = c.req.valid("param");
     const { path, is_primary } = c.req.valid("json");
@@ -83,7 +84,7 @@ media.delete(
   async (c) => {
     const supabaseAdmin = c.get("supabaseAdmin");
     const userId = c.get("userId");
-    if (!userId) throw new Error("Authentication required");
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid("param");
     await mediaService.deleteMedia(supabaseAdmin, userId, id);

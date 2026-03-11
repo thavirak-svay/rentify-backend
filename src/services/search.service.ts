@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { DatabaseError } from "../lib/errors";
 
 const searchParamsSchema = z.object({
   q: z.string().optional(),
@@ -56,7 +57,7 @@ export async function searchListings(
   });
 
   if (error) {
-    throw new Error(`Search failed: ${error.message}`);
+    throw new DatabaseError(`Search failed: ${error.message}`);
   }
 
   return data || [];
