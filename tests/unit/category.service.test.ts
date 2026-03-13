@@ -5,9 +5,9 @@ import * as categoryService from "../../src/services/category.service";
 
 describe("Category Service", () => {
   const mockCategories: Category[] = [
-    { id: "cat-1", name: "Electronics", slug: "electronics", icon: "laptop", sort_order: 1, created_at: "2024-01-01T00:00:00Z" },
-    { id: "cat-2", name: "Vehicles", slug: "vehicles", icon: "car", sort_order: 2, created_at: "2024-01-01T00:00:00Z" },
-    { id: "cat-3", name: "Cameras", slug: "cameras", icon: "camera", sort_order: 3, created_at: "2024-01-01T00:00:00Z" },
+    { id: "cat-1", name: "Electronics", slug: "electronics", description: null, icon: "laptop", parent_id: null, sort_order: 1, created_at: "2024-01-01T00:00:00Z" },
+    { id: "cat-2", name: "Vehicles", slug: "vehicles", description: null, icon: "car", parent_id: null, sort_order: 2, created_at: "2024-01-01T00:00:00Z" },
+    { id: "cat-3", name: "Cameras", slug: "cameras", description: null, icon: "camera", parent_id: null, sort_order: 3, created_at: "2024-01-01T00:00:00Z" },
   ];
 
   const createMockClient = (tableName: string, data: unknown, error: unknown = null) => {
@@ -32,7 +32,7 @@ describe("Category Service", () => {
     test("should return all categories", async () => {
       const result = await categoryService.getCategories(createMockClient("categories", mockCategories));
       expect(result).toHaveLength(3);
-      expect(result[0].name).toBe("Electronics");
+      expect(result[0]?.name).toBe("Electronics");
     });
 
     test("should return empty array when no categories", async () => {

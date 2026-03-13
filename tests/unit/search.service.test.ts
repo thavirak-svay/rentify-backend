@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as searchService from "../../src/services/search.service";
 import type { SearchParams } from "../../src/services/search.service";
@@ -26,7 +26,7 @@ describe("Search Service", () => {
     },
   ];
 
-  const createMockSupabase = (results: unknown[], error: unknown = null) => {
+  const createMockSupabase = (results: unknown[] | null, error: unknown = null) => {
     return {
       rpc: () => Promise.resolve({ data: results, error }),
     } as unknown as SupabaseClient;
@@ -44,7 +44,7 @@ describe("Search Service", () => {
 
       const result = await searchService.searchListings(createMockSupabase(mockSearchResults), params);
       expect(result).toHaveLength(1);
-      expect(result[0].title).toBe("Test Listing");
+      expect(result[0]?.title).toBe("Test Listing");
     });
 
     test("should search with location filters", async () => {
@@ -66,6 +66,7 @@ describe("Search Service", () => {
         category: "electronics",
         limit: 10,
         offset: 0,
+        radius: 25,
         sort: "relevance",
       };
 
@@ -78,6 +79,7 @@ describe("Search Service", () => {
         type: "offer",
         limit: 10,
         offset: 0,
+        radius: 25,
         sort: "relevance",
       };
 
@@ -91,6 +93,7 @@ describe("Search Service", () => {
         max_price: 20000,
         limit: 10,
         offset: 0,
+        radius: 25,
         sort: "relevance",
       };
 
@@ -112,6 +115,7 @@ describe("Search Service", () => {
           sort,
           limit: 10,
           offset: 0,
+          radius: 25,
         };
 
         const result = await searchService.searchListings(createMockSupabase(mockSearchResults), params);
@@ -123,6 +127,7 @@ describe("Search Service", () => {
       const params: SearchParams = {
         limit: 10,
         offset: 20,
+        radius: 25,
         sort: "relevance",
       };
 
@@ -135,6 +140,7 @@ describe("Search Service", () => {
         q: "nonexistent",
         limit: 20,
         offset: 0,
+        radius: 25,
         sort: "relevance",
       };
 
@@ -147,6 +153,7 @@ describe("Search Service", () => {
         q: "test",
         limit: 20,
         offset: 0,
+        radius: 25,
         sort: "relevance",
       };
 
@@ -159,6 +166,9 @@ describe("Search Service", () => {
       const params: SearchParams = {
         q: "test",
         sort: "relevance",
+        radius: 25,
+        limit: 20,
+        offset: 0,
       };
 
       const result = await searchService.searchListings(createMockSupabase(mockSearchResults), params);

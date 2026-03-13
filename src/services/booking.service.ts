@@ -414,3 +414,36 @@ export async function getUserBookings(
 
   return data || [];
 }
+
+export async function activateBooking(
+  supabaseAdmin: SupabaseClient,
+  bookingId: string
+): Promise<Booking> {
+  const { data: booking, error } = await supabaseAdmin
+    .from("bookings")
+    .select()
+    .eq("id", bookingId)
+    .single();
+
+  if (error || !booking) {
+    throw new NotFoundError("Booking not found");
+  }
+
+  validateTransition(booking.status, "active", "system", booking);
+
+  const { data: updated, error: updateError } = await supabaseAdmin
+    .from("bookings")
+    .update({
+      status: "active",
+      activated_at: new Date().toISOString(),
+    })
+    .eq("id", bookingId)
+    .select()
+    .single();
+
+  if (updateError) {
+    throw new Error(`Failed to activate booking: ${updateError.message}`);
+  }
+
+  return updated;
+}

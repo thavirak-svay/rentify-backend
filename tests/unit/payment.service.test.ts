@@ -1,5 +1,4 @@
-import { describe, expect, test, beforeEach, mock } from "bun:test";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { describe, expect, test, mock } from "bun:test";
 import type { Env } from "../../src/config/env";
 import * as paymentService from "../../src/services/payment.service";
 import { createHash } from "node:crypto";
@@ -14,6 +13,7 @@ const mockEnv: Env = {
   PAYWAY_BASE_URL: "https://test.payway.com.kh",
   PAYWAY_CALLBACK_URL: "https://test.workers.dev",
   APP_URL: "https://test.app.com",
+  NODE_ENV: "test",
 };
 
 function generateHash(apiKey: string, data: string): string {
@@ -47,7 +47,7 @@ describe("Payment Service", () => {
         } as unknown as Response)
       );
 
-      globalThis.fetch = mockFetch;
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
 
       const booking: paymentService.PayWayBooking = {
         id: "test-booking-id",
@@ -85,7 +85,7 @@ describe("Payment Service", () => {
         } as unknown as Response)
       );
 
-      globalThis.fetch = mockFetch;
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
 
       await expect(paymentService.captureWithPayout(mockEnv, "test-tran-id")).rejects.toThrow(
         "PayWay service error: capture failed: Capture failed"
@@ -101,7 +101,7 @@ describe("Payment Service", () => {
         } as unknown as Response)
       );
 
-      globalThis.fetch = mockFetch;
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
 
       await expect(paymentService.captureWithPayout(mockEnv, "test-tran-id")).rejects.toThrow(
         "PayWay service error: capture failed: 500 - Server Error"
@@ -119,7 +119,7 @@ describe("Payment Service", () => {
         } as unknown as Response)
       );
 
-      globalThis.fetch = mockFetch;
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
 
       await expect(paymentService.cancelPreAuth(mockEnv, "test-tran-id")).rejects.toThrow(
         "PayWay service error: cancel failed: 500 - Server Error"
@@ -137,7 +137,7 @@ describe("Payment Service", () => {
         } as unknown as Response)
       );
 
-      globalThis.fetch = mockFetch;
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
 
       await expect(paymentService.refundPayment(mockEnv, "test-tran-id")).rejects.toThrow(
         "PayWay service error: refund failed: 500 - Server Error"
@@ -154,7 +154,7 @@ describe("Payment Service", () => {
         } as unknown as Response)
       );
 
-      globalThis.fetch = mockFetch;
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
 
       await expect(paymentService.checkTransaction(mockEnv, "test-tran-id")).rejects.toThrow(
         "PayWay service error: check transaction failed: Internal Server Error"
@@ -176,7 +176,7 @@ describe("Payment Service", () => {
         } as unknown as Response)
       );
 
-      globalThis.fetch = mockFetch;
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
 
       const result = await paymentService.checkTransaction(mockEnv, "test-tran-id");
       expect(result.payment_status).toBe("success");

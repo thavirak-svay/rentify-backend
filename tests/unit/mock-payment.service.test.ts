@@ -12,6 +12,7 @@ const mockEnv: Env = {
   PAYWAY_BASE_URL: "https://test.payway.com.kh",
   PAYWAY_CALLBACK_URL: "https://test.workers.dev",
   APP_URL: "https://test.app.com",
+  NODE_ENV: "test",
 };
 
 describe("Mock Payment Service", () => {

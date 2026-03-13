@@ -2,7 +2,9 @@ import { describe, expect, test, beforeAll, afterAll } from "bun:test";
 import { TestDataManager, USER_PERSONAS, ApiClient, TEST_CONFIG } from "../fixtures/test-data";
 
 // E2E tests require running dev server
-const describeE2E = describe;
+const canRunE2E = TEST_CONFIG.SUPABASE_URL && TEST_CONFIG.SUPABASE_SERVICE_KEY;
+
+const describeE2E = canRunE2E ? describe : describe.skip;
 
 describeE2E("E2E: Complete User Scenarios", () => {
   let testManager: TestDataManager;

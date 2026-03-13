@@ -1,11 +1,12 @@
-import { beforeAll, beforeEach, describe, expect, test, afterAll } from "bun:test";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "../../src/types/database";
+import { beforeAll, describe, expect, test, afterAll } from "bun:test";
 import { TestDataManager, USER_PERSONAS, ApiClient, TEST_CONFIG } from "../fixtures/test-data";
 
+const canRunIntegration = TEST_CONFIG.SUPABASE_URL && TEST_CONFIG.SUPABASE_SERVICE_KEY;
+
+const describeIntegration = canRunIntegration ? describe : describe.skip;
+
 // Integration tests require running dev server and real database
-describe("Integration: User Service", () => {
+describeIntegration("Integration: User Service", () => {
   let testManager: TestDataManager;
   let sophea: { id: string; token: string };
 
@@ -25,8 +26,8 @@ describe("Integration: User Service", () => {
 
       const res = await api.get("/v1/users/me");
       expect(res.status).toBe(200);
-      expect(res.data.data.id).toBe(sophea.id);
-      expect(res.data.data.display_name).toBe(USER_PERSONAS.sophea.displayName);
+      expect((res.data.data as { id: string }).id).toBe(sophea.id);
+      expect((res.data.data as { display_name: string }).display_name).toBe(USER_PERSONAS.sophea.displayName);
     });
   });
 
@@ -37,12 +38,12 @@ describe("Integration: User Service", () => {
 
       const res = await api.patch("/v1/users/me", { bio: "Updated bio" });
       expect(res.status).toBe(200);
-      expect(res.data.data.bio).toBe("Updated bio");
+      expect((res.data.data as { bio: string }).bio).toBe("Updated bio");
     });
   });
 });
 
-describe("Integration: Listing Service", () => {
+describeIntegration("Integration: Listing Service", () => {
   let testManager: TestDataManager;
   let sophea: { id: string; token: string };
   let dara: { id: string; token: string };
@@ -75,8 +76,8 @@ describe("Integration: Listing Service", () => {
       });
 
       expect(res.status).toBe(201);
-      expect(res.data.data.status).toBe("draft");
-      listingId = res.data.data.id;
+      expect((res.data.data as { status: string }).status).toBe("draft");
+      listingId = (res.data.data as { id: string }).id;
     });
   });
 
@@ -87,7 +88,7 @@ describe("Integration: Listing Service", () => {
 
       const res = await api.post(`/v1/listings/${listingId}/publish`);
       expect(res.status).toBe(200);
-      expect(res.data.data.status).toBe("active");
+      expect((res.data.data as { status: string }).status).toBe("active");
     });
 
     test("should be searchable after publish", async () => {
@@ -102,7 +103,7 @@ describe("Integration: Listing Service", () => {
   });
 });
 
-describe("Integration: Booking Flow", () => {
+describeIntegration("Integration: Booking Flow", () => {
   let testManager: TestDataManager;
   let sophea: { id: string; token: string };
   let dara: { id: string; token: string };
@@ -128,7 +129,7 @@ describe("Integration: Booking Flow", () => {
       pickup_available: true,
     });
 
-    listingId = listingRes.data.data.id;
+    listingId = (listingRes.data.data as { id: string }).id;
     await api.post(`/v1/listings/${listingId}/publish`);
   });
 

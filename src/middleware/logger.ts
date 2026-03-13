@@ -1,5 +1,14 @@
 import type { MiddlewareHandler } from "hono";
 
+export const log = {
+  info: (obj: unknown, msg?: string) =>
+    console.log(msg || "", typeof obj === "object" ? JSON.stringify(obj) : obj),
+  warn: (obj: unknown, msg?: string) =>
+    console.warn(msg || "", typeof obj === "object" ? JSON.stringify(obj) : obj),
+  error: (obj: unknown, msg?: string) =>
+    console.error(msg || "", typeof obj === "object" ? JSON.stringify(obj) : obj),
+};
+
 // ─── HTTP request logging middleware ────────────────────────────────────────
 // Uses native console.* so Sentry's consoleLoggingIntegration picks them up.
 export function structuredLogger(): MiddlewareHandler {
