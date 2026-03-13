@@ -1,14 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../config/env";
 import { validateTransition } from "../lib/booking-machine";
-import {
-  ConflictError,
-  DatabaseError,
-  ForbiddenError,
-  NotFoundError,
-  ValidationError,
-} from "../lib/errors";
+import { ConflictError, ForbiddenError, NotFoundError } from "../lib/errors";
 import { calculatePricing, type PricingInput } from "../lib/pricing";
+import { log } from "../middleware/logger";
 import type { Booking, Profile } from "../types/database";
 import * as paymentService from "./payment.service";
 
@@ -19,82 +14,6 @@ export interface CreateBookingInput {
   delivery_method?: "pickup" | "delivery";
   delivery_address?: string;
   protection_plan?: "none" | "basic" | "premium";
-}
-
-export interface BookingRepository {
-  create(
-    input: CreateBookingInput,
-    renterId: string,
-    env: Env
-  ): Promise<{ booking: Booking; checkout_url: string }>;
-  findById(id: string): Promise<Booking>;
-  findByIdWithTransactions(
-    id: string
-  ): Promise<Booking & { transactions: Array<{ payway_tran_id?: string }> }>;
-  approve(id: string, userId: string, env: Env): Promise<Booking>;
-  decline(id: string, userId: string, env: Env): Promise<Booking>;
-  cancel(id: string, userId: string, env: Env, reason?: string): Promise<Booking>;
-  activate(id: string): Promise<Booking>;
-  complete(id: string): Promise<Booking>;
-  findByUser(userId: string, role?: "renter" | "owner"): Promise<Booking[]>;
-}
-
-export function createBookingRepository(
-  supabaseAdmin: SupabaseClient
-): Pick<BookingRepository, "findById" | "findByIdWithTransactions" | "findByUser"> {
-  async function findById(id: string): Promise<Booking> {
-    const { data, error } = await supabaseAdmin.from("bookings").select().eq("id", id).single();
-
-    if (error || !data) {
-      throw new NotFoundError("Booking not found");
-    }
-
-    return data;
-  }
-
-  async function findByIdWithTransactions(
-    id: string
-  ): Promise<Booking & { transactions: Array<{ payway_tran_id?: string }> }> {
-    const { data, error } = await supabaseAdmin
-      .from("bookings")
-      .select("*, transactions(*)")
-      .eq("id", id)
-      .single();
-
-    if (error || !data) {
-      throw new NotFoundError("Booking not found");
-    }
-
-    return data as Booking & { transactions: Array<{ payway_tran_id?: string }> };
-  }
-
-  async function findByUser(userId: string, role?: "renter" | "owner"): Promise<Booking[]> {
-    let query = supabaseAdmin
-      .from("bookings")
-      .select()
-      .or(`renter_id.eq.${userId},owner_id.eq.${userId}`)
-      .order("created_at", { ascending: false });
-
-    if (role === "renter") {
-      query = query.eq("renter_id", userId);
-    } else if (role === "owner") {
-      query = query.eq("owner_id", userId);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new DatabaseError(`Failed to get bookings: ${error.message}`);
-    }
-
-    return data || [];
-  }
-
-  return {
-    findById,
-    findByIdWithTransactions,
-    findByUser,
-  };
 }
 
 export async function createBooking(
@@ -112,10 +31,6 @@ export async function createBooking(
     .single();
 
   if (listingError || !listing) {
-    console.warn(
-      "Booking failed - listing not found",
-      JSON.stringify({ listingId: input.listing_id, renterId })
-    );
     throw new NotFoundError("Listing not found or not available");
   }
 
@@ -129,16 +44,6 @@ export async function createBooking(
     .or(`start_time.lt.${input.end_time},end_time.gt.${input.start_time}`);
 
   if (conflicts && conflicts.length > 0) {
-    console.warn(
-      "Booking failed - date conflict",
-      JSON.stringify({
-        listingId: input.listing_id,
-        renterId,
-        startTime: input.start_time,
-        endTime: input.end_time,
-        conflictCount: conflicts.length,
-      })
-    );
     throw new ConflictError("Listing is not available for the selected dates");
   }
 
@@ -184,7 +89,7 @@ export async function createBooking(
     .single();
 
   if (bookingError || !booking) {
-    throw new DatabaseError(`Failed to create booking: ${bookingError?.message}`);
+    throw new Error(`Failed to create booking: ${bookingError?.message}`);
   }
 
   const { data: renter } = await supabaseAdmin
@@ -204,54 +109,20 @@ export async function createBooking(
     ownerPaywayBeneficiaryId: owner.payway_beneficiary_id || "",
   };
 
-  let checkoutUrl = "";
+  const paymentResult = await paymentService.createPreAuth(env, paywayBooking, pricing);
 
-  try {
-    const paymentResult = await paymentService.createPreAuth(env, paywayBooking, pricing);
-    checkoutUrl = paymentResult.checkout_url;
-    console.log(
-      "Payment pre-auth initiated",
-      JSON.stringify({
-        bookingId: booking.id,
-        listingId: input.listing_id,
-        renterId,
-        totalAmount: pricing.total_renter_pays,
-        currency: listing.currency,
-      })
-    );
-
-    await supabaseAdmin.from("transactions").insert({
-      booking_id: booking.id,
-      type: "pre_auth",
-      status: "pending",
-      amount: pricing.total_renter_pays,
-      currency: listing.currency,
-      payway_tran_id: paymentResult.payway_tran_id,
-    });
-  } catch (e) {
-    console.error("PayWay pre-auth failed", e);
-    checkoutUrl = "";
-  }
-
-  console.log(
-    "Booking created successfully",
-    JSON.stringify({
-      bookingId: booking.id,
-      listingId: input.listing_id,
-      renterId,
-      ownerId: listing.owner_id,
-      startTime: input.start_time,
-      endTime: input.end_time,
-      totalAmount: pricing.total_renter_pays,
-      currency: listing.currency,
-      status: booking.status,
-      hasCheckoutUrl: !!checkoutUrl,
-    })
-  );
+  await supabaseAdmin.from("transactions").insert({
+    booking_id: booking.id,
+    type: "pre_auth",
+    status: "pending",
+    amount: pricing.total_renter_pays,
+    currency: listing.currency,
+    payway_tran_id: paymentResult.payway_tran_id,
+  });
 
   return {
     booking,
-    checkout_url: checkoutUrl,
+    checkout_url: paymentResult.checkout_url,
   };
 }
 
@@ -261,8 +132,15 @@ export async function approveBooking(
   bookingId: string,
   userId: string
 ): Promise<Booking> {
-  const repo = createBookingRepository(supabaseAdmin);
-  const booking = await repo.findByIdWithTransactions(bookingId);
+  const { data: booking, error } = await supabaseAdmin
+    .from("bookings")
+    .select("*, transactions(*)")
+    .eq("id", bookingId)
+    .single();
+
+  if (error || !booking) {
+    throw new NotFoundError("Booking not found");
+  }
 
   validateTransition(booking.status, "approved", userId, booking);
 
@@ -270,16 +148,12 @@ export async function approveBooking(
   if (transaction?.payway_tran_id) {
     try {
       await paymentService.captureWithPayout(env, transaction.payway_tran_id);
-      await supabaseAdmin
-        .from("transactions")
-        .update({ status: "completed", processed_at: new Date().toISOString() })
-        .eq("payway_tran_id", transaction.payway_tran_id);
-      console.log(
-        "Payment captured successfully",
-        JSON.stringify({ bookingId, transactionId: transaction.payway_tran_id })
+    } catch (err) {
+      log.error(
+        { err, booking_id: bookingId, tran_id: transaction.payway_tran_id },
+        "Payment capture failed during approval"
       );
-    } catch (e) {
-      console.error("PayWay capture failed", e);
+      throw err;
     }
   }
 
@@ -294,18 +168,29 @@ export async function approveBooking(
     .single();
 
   if (updateError) {
-    throw new DatabaseError(`Failed to approve booking: ${updateError.message}`);
+    if (transaction?.payway_tran_id) {
+      log.warn(
+        { booking_id: bookingId, tran_id: transaction.payway_tran_id },
+        "DB update failed after payment capture - attempting compensation"
+      );
+      try {
+        await paymentService.cancelPreAuth(env, transaction.payway_tran_id);
+      } catch (compensateErr) {
+        log.error(
+          { err: compensateErr, booking_id: bookingId, tran_id: transaction.payway_tran_id },
+          "CRITICAL: Compensation failed - manual intervention required"
+        );
+      }
+    }
+    throw new Error(`Failed to approve booking: ${updateError.message}`);
   }
 
-  console.log(
-    "Booking approved",
-    JSON.stringify({
-      bookingId,
-      ownerId: userId,
-      totalAmount: booking.total_amount,
-      currency: booking.currency,
-    })
-  );
+  if (transaction?.payway_tran_id) {
+    await supabaseAdmin
+      .from("transactions")
+      .update({ status: "completed", processed_at: new Date().toISOString() })
+      .eq("payway_tran_id", transaction.payway_tran_id);
+  }
 
   return updated;
 }
@@ -316,8 +201,15 @@ export async function declineBooking(
   bookingId: string,
   userId: string
 ): Promise<Booking> {
-  const repo = createBookingRepository(supabaseAdmin);
-  const booking = await repo.findByIdWithTransactions(bookingId);
+  const { data: booking, error } = await supabaseAdmin
+    .from("bookings")
+    .select("*, transactions(*)")
+    .eq("id", bookingId)
+    .single();
+
+  if (error || !booking) {
+    throw new NotFoundError("Booking not found");
+  }
 
   validateTransition(booking.status, "declined", userId, booking);
 
@@ -325,16 +217,12 @@ export async function declineBooking(
   if (transaction?.payway_tran_id) {
     try {
       await paymentService.cancelPreAuth(env, transaction.payway_tran_id);
-      await supabaseAdmin
-        .from("transactions")
-        .update({ status: "cancelled", processed_at: new Date().toISOString() })
-        .eq("payway_tran_id", transaction.payway_tran_id);
-      console.log(
-        "Payment pre-auth cancelled",
-        JSON.stringify({ bookingId, transactionId: transaction.payway_tran_id })
+    } catch (err) {
+      log.error(
+        { err, booking_id: bookingId, tran_id: transaction.payway_tran_id },
+        "Pre-auth cancellation failed during decline"
       );
-    } catch (e) {
-      console.error("PayWay cancel failed", e);
+      throw err;
     }
   }
 
@@ -349,10 +237,19 @@ export async function declineBooking(
     .single();
 
   if (updateError) {
-    throw new DatabaseError(`Failed to decline booking: ${updateError.message}`);
+    log.error(
+      { err: updateError, booking_id: bookingId, tran_id: transaction?.payway_tran_id },
+      "DB update failed after pre-auth cancellation - pre-auth already released"
+    );
+    throw new Error(`Failed to decline booking: ${updateError.message}`);
   }
 
-  console.log("Booking declined", JSON.stringify({ bookingId, ownerId: userId }));
+  if (transaction?.payway_tran_id) {
+    await supabaseAdmin
+      .from("transactions")
+      .update({ status: "cancelled", processed_at: new Date().toISOString() })
+      .eq("payway_tran_id", transaction.payway_tran_id);
+  }
 
   return updated;
 }
@@ -364,8 +261,15 @@ export async function cancelBooking(
   userId: string,
   reason?: string
 ): Promise<Booking> {
-  const repo = createBookingRepository(supabaseAdmin);
-  const booking = await repo.findByIdWithTransactions(bookingId);
+  const { data: booking, error } = await supabaseAdmin
+    .from("bookings")
+    .select("*, transactions(*)")
+    .eq("id", bookingId)
+    .single();
+
+  if (error || !booking) {
+    throw new NotFoundError("Booking not found");
+  }
 
   validateTransition(booking.status, "cancelled", userId, booking);
 
@@ -373,27 +277,22 @@ export async function cancelBooking(
 
   if (transaction?.payway_tran_id) {
     try {
-      const isRefund = booking.status === "active";
       if (booking.status === "requested" || booking.status === "approved") {
         await paymentService.cancelPreAuth(env, transaction.payway_tran_id);
-      } else if (isRefund) {
+      } else if (booking.status === "active") {
         await paymentService.refundPayment(env, transaction.payway_tran_id);
       }
-      const txStatus = booking.status === "active" ? "refunded" : "cancelled";
-      await supabaseAdmin
-        .from("transactions")
-        .update({ status: txStatus, processed_at: new Date().toISOString() })
-        .eq("payway_tran_id", transaction.payway_tran_id);
-      console.log(
-        isRefund ? "Payment refunded" : "Payment cancelled",
-        JSON.stringify({
-          bookingId,
-          transactionId: transaction.payway_tran_id,
-          bookingStatus: booking.status,
-        })
+    } catch (err) {
+      log.error(
+        {
+          err,
+          booking_id: bookingId,
+          tran_id: transaction.payway_tran_id,
+          booking_status: booking.status,
+        },
+        "Payment operation failed during cancellation"
       );
-    } catch (e) {
-      console.error("PayWay cancel/refund failed", e);
+      throw err;
     }
   }
 
@@ -410,51 +309,27 @@ export async function cancelBooking(
     .single();
 
   if (updateError) {
-    throw new DatabaseError(`Failed to cancel booking: ${updateError.message}`);
+    if (booking.status === "active" && transaction?.payway_tran_id) {
+      log.error(
+        { err: updateError, booking_id: bookingId, tran_id: transaction.payway_tran_id },
+        "CRITICAL: DB update failed after refund - refund cannot be reversed, manual intervention required"
+      );
+    } else if (transaction?.payway_tran_id) {
+      log.warn(
+        { booking_id: bookingId, tran_id: transaction.payway_tran_id },
+        "DB update failed after pre-auth cancellation - pre-auth already released"
+      );
+    }
+    throw new Error(`Failed to cancel booking: ${updateError.message}`);
   }
 
-  console.log(
-    "Booking cancelled",
-    JSON.stringify({
-      bookingId,
-      cancelledBy: userId,
-      previousStatus: booking.status,
-      cancellationReason: reason,
-    })
-  );
-
-  return updated;
-}
-
-export async function activateBooking(
-  supabaseAdmin: SupabaseClient,
-  bookingId: string
-): Promise<Booking> {
-  const repo = createBookingRepository(supabaseAdmin);
-  const booking = await repo.findById(bookingId);
-
-  if (booking.status !== "approved") {
-    throw new ValidationError("Can only activate approved bookings");
+  if (transaction?.payway_tran_id) {
+    const txStatus = booking.status === "active" ? "refunded" : "cancelled";
+    await supabaseAdmin
+      .from("transactions")
+      .update({ status: txStatus, processed_at: new Date().toISOString() })
+      .eq("payway_tran_id", transaction.payway_tran_id);
   }
-
-  const { data: updated, error: updateError } = await supabaseAdmin
-    .from("bookings")
-    .update({
-      status: "active",
-      started_at: new Date().toISOString(),
-    })
-    .eq("id", bookingId)
-    .select()
-    .single();
-
-  if (updateError) {
-    throw new DatabaseError(`Failed to activate booking: ${updateError.message}`);
-  }
-
-  console.log(
-    "Booking activated",
-    JSON.stringify({ bookingId, totalAmount: booking.total_amount, currency: booking.currency })
-  );
 
   return updated;
 }
@@ -463,8 +338,15 @@ export async function completeBooking(
   supabaseAdmin: SupabaseClient,
   bookingId: string
 ): Promise<Booking> {
-  const repo = createBookingRepository(supabaseAdmin);
-  const booking = await repo.findById(bookingId);
+  const { data: booking, error } = await supabaseAdmin
+    .from("bookings")
+    .select()
+    .eq("id", bookingId)
+    .single();
+
+  if (error || !booking) {
+    throw new NotFoundError("Booking not found");
+  }
 
   validateTransition(booking.status, "completed", "system", booking);
 
@@ -479,19 +361,8 @@ export async function completeBooking(
     .single();
 
   if (updateError) {
-    throw new DatabaseError(`Failed to complete booking: ${updateError.message}`);
+    throw new Error(`Failed to complete booking: ${updateError.message}`);
   }
-
-  console.log(
-    "Booking completed",
-    JSON.stringify({
-      bookingId,
-      renterId: booking.renter_id,
-      ownerId: booking.owner_id,
-      totalAmount: booking.total_amount,
-      currency: booking.currency,
-    })
-  );
 
   return updated;
 }
@@ -501,8 +372,15 @@ export async function getBooking(
   bookingId: string,
   userId: string
 ): Promise<Booking> {
-  const repo = createBookingRepository(supabaseAdmin);
-  const booking = await repo.findById(bookingId);
+  const { data: booking, error } = await supabaseAdmin
+    .from("bookings")
+    .select()
+    .eq("id", bookingId)
+    .single();
+
+  if (error || !booking) {
+    throw new NotFoundError("Booking not found");
+  }
 
   if (booking.renter_id !== userId && booking.owner_id !== userId) {
     throw new ForbiddenError("You can only view your own bookings");
@@ -516,6 +394,23 @@ export async function getUserBookings(
   userId: string,
   role?: "renter" | "owner"
 ): Promise<Booking[]> {
-  const repo = createBookingRepository(supabaseAdmin);
-  return repo.findByUser(userId, role);
+  let query = supabaseAdmin
+    .from("bookings")
+    .select()
+    .or(`renter_id.eq.${userId},owner_id.eq.${userId}`)
+    .order("created_at", { ascending: false });
+
+  if (role === "renter") {
+    query = query.eq("renter_id", userId);
+  } else if (role === "owner") {
+    query = query.eq("owner_id", userId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(`Failed to get bookings: ${error.message}`);
+  }
+
+  return data || [];
 }
