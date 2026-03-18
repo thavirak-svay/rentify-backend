@@ -155,12 +155,12 @@ bun run db:reset
 
 ### Production Setup
 
-See [SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) for:
-- Creating production project
-- Enabling PostgREST API
-- Running migrations
-- Storage configuration
-- Security setup
+See the [Architecture Document](_bmad-output/planning-artifacts/architecture.md) for:
+
+- System architecture overview
+- Database schema design
+- Security architecture
+- Deployment configuration
 
 ## Deployment
 
