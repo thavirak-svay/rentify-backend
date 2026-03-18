@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const envSchema = z.object({
   SUPABASE_URL: z.string().url(),
@@ -10,7 +10,7 @@ export const envSchema = z.object({
   PAYWAY_BASE_URL: z.string().url(),
   PAYWAY_CALLBACK_URL: z.string().url(),
   APP_URL: z.string().url(),
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   RESEND_API_KEY: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
 });
@@ -19,13 +19,12 @@ export type Env = z.infer<typeof envSchema>;
 export type Bindings = Env;
 
 export function getEnv(c: { env: Env }): Env {
-  const parsed = envSchema.safeParse(c.env);
+  const PARSED = envSchema.safeParse(c.env);
 
-  if (!parsed.success) {
-    const errors = parsed.error.flatten().fieldErrors;
-    console.error("Invalid environment variables", JSON.stringify(errors));
-    throw new Error(`Invalid environment variables: ${JSON.stringify(errors)}`);
+  if (!PARSED.success) {
+    const ERRORS = PARSED.error.flatten().fieldErrors;
+    throw new Error(`Invalid environment variables: ${JSON.stringify(ERRORS)}`);
   }
 
-  return parsed.data;
+  return PARSED.data;
 }

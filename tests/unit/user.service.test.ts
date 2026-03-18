@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Profile } from "../../src/types/database";
-import * as userService from "../../src/services/user.service";
+import type { Profile } from "../../src/shared/types/database";
+import * as userService from "../../src/modules/user/service";
 
 describe("User Service", () => {
   const mockProfile: Profile = {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import * as mediaService from "../../src/services/media.service";
+import * as mediaService from "../../src/modules/media/service";
 
 describe("Media Service", () => {
   const createMockClient = () => {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Category } from "../../src/types/database";
-import * as categoryService from "../../src/services/category.service";
+import type { Category } from "../../src/shared/types/database";
+import * as categoryService from "../../src/modules/category/service";
 
 describe("Category Service", () => {
   const mockCategories: Category[] = [

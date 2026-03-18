@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import * as messageService from "../../src/services/message.service";
+import * as messageService from "../../src/modules/thread/service";
 
 describe("Message Service", () => {
   const mockThread = {

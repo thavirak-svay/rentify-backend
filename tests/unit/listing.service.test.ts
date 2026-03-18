@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Listing, ListingMedia } from "../../src/types/database";
-import * as listingService from "../../src/services/listing.service";
+import type { Listing, ListingMedia } from "../../src/shared/types/database";
+import * as listingService from "../../src/modules/listing/service";
 
 describe("Listing Service", () => {
   const mockListing: Listing = {
@@ -44,6 +44,7 @@ describe("Listing Service", () => {
             is: () => ({
               single: () => Promise.resolve({ data, error }),
             }),
+            in: () => Promise.resolve({ data: [], error: null }),
             order: () => Promise.resolve({ data: [data], error }),
           }),
         }),

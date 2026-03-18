@@ -1,33 +1,210 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.4/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "files": {
-    "includes": ["src/**/*.ts", "src/**/*.tsx", "!src/types/database.ts"]
+    "includes": ["**/src/**/*.ts", "**/src/**/*.js"],
+    "ignoreUnknown": false
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 150,
+    "lineEnding": "lf",
+    "bracketSpacing": true
+  },
+  "javascript": {
+    "parser": {
+      "jsxEverywhere": false
+    },
+    "formatter": {
+      "quoteStyle": "single",
+      "trailingCommas": "all",
+      "semicolons": "always",
+      "arrowParentheses": "always"
+    }
+  },
+  "json": {
+    "parser": {
+      "allowComments": true,
+      "allowTrailingCommas": false
+    },
+    "formatter": {
+      "enabled": true,
+      "indentStyle": "space",
+      "indentWidth": 2,
+      "lineEnding": "lf"
+    }
   },
   "linter": {
     "enabled": true,
     "rules": {
       "recommended": true,
       "correctness": {
+        "recommended": true,
+        "noUnusedVariables": "error",
         "noUnusedImports": "error",
-        "noUnusedVariables": "error"
+        "noUnusedFunctionParameters": "error",
+        "noUndeclaredVariables": "error"
+      },
+      "suspicious": {
+        "recommended": true,
+        "noExplicitAny": "error",
+        "noConsole": "warn",
+        "noEmptyBlockStatements": "error",
+        "useAwait": "error",
+        "noDoubleEquals": "error",
+        "noSelfCompare": "error",
+        "noFallthroughSwitchClause": "error",
+        "noSkippedTests": "warn",
+        "noConfusingLabels": "error",
+        "noDeprecatedImports": "error",
+        "noDuplicateElseIf": "error"
+      },
+      "complexity": {
+        "recommended": true,
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": {
+            "maxAllowedComplexity": 10
+          }
+        },
+        "useSimplifiedLogicExpression": "error",
+        "noUselessStringConcat": "error",
+        "noUselessTernary": "error",
+        "noBannedTypes": "error",
+        "noStaticOnlyClass": "error",
+        "noThisInStatic": "error",
+        "useFlatMap": "error",
+        "noUselessCatch": "error",
+        "noUselessEscapeInRegex": "error"
       },
       "style": {
-        "useImportType": "error"
+        "recommended": true,
+        "useConst": "error",
+        "noParameterAssign": "error",
+        "noNegationElse": "error",
+        "useDefaultParameterLast": "error",
+        "useSingleVarDeclarator": "error",
+        "noInferrableTypes": "error",
+        "useExponentiationOperator": "error",
+        "useNamingConvention": {
+          "level": "warn",
+          "options": {
+            "strictCase": true,
+            "conventions": [
+              {
+                "selector": {
+                  "kind": "function"
+                },
+                "formats": ["camelCase"]
+              },
+              {
+                "selector": {
+                  "kind": "variable"
+                },
+                "formats": ["camelCase", "CONSTANT_CASE", "PascalCase"]
+              },
+              {
+                "selector": {
+                  "kind": "objectLiteralProperty"
+                },
+                "formats": ["camelCase", "CONSTANT_CASE", "snake_case"]
+              },
+              {
+                "selector": {
+                  "kind": "classMember"
+                },
+                "formats": ["camelCase", "snake_case"]
+              },
+              {
+                "selector": {
+                  "kind": "typeLike"
+                },
+                "formats": ["PascalCase"]
+              }
+            ]
+          }
+        },
+        "useArrayLiterals": "error"
+      },
+      "performance": {
+        "recommended": true,
+        "noBarrelFile": "off",
+        "noReExportAll": "off"
+      },
+      "security": {
+        "recommended": true,
+        "noGlobalEval": "error",
+        "noSecrets": "warn"
+      },
+      "nursery": {
+        "recommended": true
       }
     }
   },
-  "formatter": {
+  "assist": {
     "enabled": true,
-    "formatWithErrors": false,
-    "indentStyle": "space",
-    "indentWidth": 2,
-    "lineWidth": 100
-  },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "double",
-      "semicolons": "always",
-      "trailingCommas": "es5"
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.test.ts", "**/*.spec.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off",
+            "noExplicitAny": "warn"
+          },
+          "security": {
+            "noSecrets": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/shared/types/database.ts", "src/shared/lib/db-schemas.ts"],
+      "linter": {
+        "enabled": false
+      }
+    },
+    {
+      "includes": ["src/constants/booking.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useNamingConvention": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/modules/mock/routes.ts"],
+      "linter": {
+        "rules": {
+          "security": {
+            "noSecrets": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/modules/booking/service.ts", "src/modules/compensation/service.ts", "src/modules/review/service.ts"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveCognitiveComplexity": "warn"
+          }
+        }
+      }
+    }
+  ]
 }

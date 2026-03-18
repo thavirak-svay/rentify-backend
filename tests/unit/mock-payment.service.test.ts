@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import * as mockPaymentService from "../../src/services/mock-payment.service";
+import * as mockService from "../../src/modules/mock/service";
 import type { Env } from "../../src/config/env";
 
 const mockEnv: Env = {
@@ -34,7 +34,7 @@ describe("Mock Payment Service", () => {
         owner_payout: 9400,
       };
 
-      const result = await mockPaymentService.createPreAuth(mockEnv, booking, pricing);
+      const result = await mockService.createPreAuth(mockEnv, booking, pricing);
 
       expect(result.transaction_id).toContain("MOCK");
       expect(result.payway_tran_id).toContain("MOCK");
@@ -59,8 +59,8 @@ describe("Mock Payment Service", () => {
         owner_payout: 9400,
       };
 
-      const result1 = await mockPaymentService.createPreAuth(mockEnv, booking, pricing);
-      const result2 = await mockPaymentService.createPreAuth(mockEnv, booking, pricing);
+      const result1 = await mockService.createPreAuth(mockEnv, booking, pricing);
+      const result2 = await mockService.createPreAuth(mockEnv, booking, pricing);
 
       expect(result1.transaction_id).not.toBe(result2.transaction_id);
     });
@@ -68,7 +68,7 @@ describe("Mock Payment Service", () => {
 
   describe("captureWithPayout", () => {
     test("should return success response", async () => {
-      const result = await mockPaymentService.captureWithPayout(mockEnv, "test-tran-id");
+      const result = await mockService.captureWithPayout(mockEnv, "test-tran-id");
 
       expect(result.success).toBe(true);
       expect(result.grand_total).toBe(0);
@@ -78,7 +78,7 @@ describe("Mock Payment Service", () => {
 
   describe("cancelPreAuth", () => {
     test("should return success response", async () => {
-      const result = await mockPaymentService.cancelPreAuth(mockEnv, "test-tran-id");
+      const result = await mockService.cancelPreAuth(mockEnv, "test-tran-id");
 
       expect(result.success).toBe(true);
       expect(result.transaction_status).toBe("cancelled");
@@ -87,7 +87,7 @@ describe("Mock Payment Service", () => {
 
   describe("refundPayment", () => {
     test("should return success response", async () => {
-      const result = await mockPaymentService.refundPayment(mockEnv, "test-tran-id");
+      const result = await mockService.refundPayment(mockEnv, "test-tran-id");
 
       expect(result.success).toBe(true);
       expect(result.total_refunded).toBe(0);
@@ -97,7 +97,7 @@ describe("Mock Payment Service", () => {
 
   describe("checkTransaction", () => {
     test("should return pending status", async () => {
-      const result = await mockPaymentService.checkTransaction(mockEnv, "test-tran-id");
+      const result = await mockService.checkTransaction(mockEnv, "test-tran-id");
 
       expect(result.payment_status).toBe("pending");
       expect(result.amount).toBe(0);

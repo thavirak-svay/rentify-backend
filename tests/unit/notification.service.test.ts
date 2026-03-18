@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import * as notificationService from "../../src/services/notification.service";
+import * as notificationService from "../../src/modules/notification/service";
 
 describe("Notification Service", () => {
   const createMockClient = (queryMock: {

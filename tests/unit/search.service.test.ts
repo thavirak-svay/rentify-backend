@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import * as searchService from "../../src/services/search.service";
-import type { SearchParams } from "../../src/services/search.service";
+import * as searchService from "../../src/modules/search/service";
+import type { SearchParams } from "../../src/modules/search/service";
 
 describe("Search Service", () => {
   const mockSearchResults = [

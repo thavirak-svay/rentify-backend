@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import * as reviewService from "../../src/services/review.service";
+import * as reviewService from "../../src/modules/review/service";
 
 describe("Review Service", () => {
   const mockBooking = {

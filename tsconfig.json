@@ -1,29 +1,50 @@
 {
-  "compilerOptions": {
-    // Environment setup & latest features
-    "lib": ["ESNext"],
-    "target": "ESNext",
-    "module": "Preserve",
-    "moduleDetection": "force",
-    "jsx": "react-jsx",
-    "allowJs": true,
+	"compilerOptions": {
+		// Environment setup & latest features
+		"lib": ["ESNext"],
+		"target": "ESNext",
+		"module": "Preserve",
+		"moduleDetection": "force",
+		"jsx": "react-jsx",
+		"allowJs": true,
 
-    // Bundler mode
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "noEmit": true,
+		// Bundler mode
+		"moduleResolution": "bundler",
+		"allowImportingTsExtensions": true,
+		"verbatimModuleSyntax": true,
+		"noEmit": true,
 
-    // Best practices
-    "strict": true,
-    "skipLibCheck": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
+		// Path aliases
+		"baseUrl": ".",
+		"paths": {
+			"@/constants": ["./src/constants/index.ts"],
+			"@/constants/*": ["./src/constants/*"],
+			"@/modules/booking": ["./src/modules/booking/index.ts"],
+			"@/modules/booking/*": ["./src/modules/booking/*"],
+			"@/modules/payment": ["./src/modules/payment/index.ts"],
+			"@/modules/payment/*": ["./src/modules/payment/*"],
+			"@/modules/pricing": ["./src/modules/pricing/index.ts"],
+			"@/modules/pricing/*": ["./src/modules/pricing/*"],
+			"@/modules/compensation": ["./src/modules/compensation/index.ts"],
+			"@/modules/compensation/*": ["./src/modules/compensation/*"],
+			"@/shared/lib": ["./src/shared/lib/index.ts"],
+			"@/shared/lib/*": ["./src/shared/lib/*"],
+			"@/shared/types": ["./src/shared/types/index.ts"],
+			"@/shared/types/*": ["./src/shared/types/*"],
+			"@/shared/middleware/*": ["./src/shared/middleware/*"],
+			"@/config/*": ["./src/config/*"]
+		},
 
-    // Some stricter flags (disabled by default)
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
-  }
+		// Best practices
+		"strict": true,
+		"skipLibCheck": true,
+		"noFallthroughCasesInSwitch": true,
+		"noUncheckedIndexedAccess": true,
+		"noImplicitOverride": true,
+
+		// Some stricter flags (disabled by default)
+		"noUnusedLocals": false,
+		"noUnusedParameters": false,
+		"noPropertyAccessFromIndexSignature": false
+	}
 }

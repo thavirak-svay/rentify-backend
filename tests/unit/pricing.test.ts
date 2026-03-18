@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { calculatePricing } from "../../src/lib/pricing";
+import { calculatePricing } from "../../src/modules/pricing";
+import { ValidationError } from "../../src/shared/lib/errors";
 
 describe("Unit: Pricing Engine", () => {
   describe("calculatePricing", () => {
@@ -207,6 +208,113 @@ describe("Unit: Pricing Engine", () => {
       expect(result.protection_fee).toBe(600);
       expect(result.deposit_amount).toBe(5000);
       expect(result.total_renter_pays).toBe(12820);
+    });
+  });
+
+  describe("calculatePricing - Validation", () => {
+    test("should throw ValidationError when endTime is before startTime", () => {
+      expect(() =>
+        calculatePricing({
+          startTime: new Date("2024-01-10T10:00:00Z"),
+          endTime: new Date("2024-01-05T10:00:00Z"),
+          priceHourly: null,
+          priceDaily: 1000,
+          priceWeekly: null,
+          depositAmount: 0,
+          deliveryMethod: "pickup",
+          deliveryFee: 0,
+          protectionPlan: "none",
+          serviceFeeRate: 0.12,
+        })
+      ).toThrow(ValidationError);
+    });
+
+    test("should throw ValidationError when rental period exceeds 90 days", () => {
+      expect(() =>
+        calculatePricing({
+          startTime: new Date("2024-01-01T10:00:00Z"),
+          endTime: new Date("2024-05-01T10:00:00Z"), // ~120 days
+          priceHourly: null,
+          priceDaily: 1000,
+          priceWeekly: null,
+          depositAmount: 0,
+          deliveryMethod: "pickup",
+          deliveryFee: 0,
+          protectionPlan: "none",
+          serviceFeeRate: 0.12,
+        })
+      ).toThrow(ValidationError);
+    });
+
+    test("should accept rental period under 90 days", () => {
+      // 85 days should work
+      const result = calculatePricing({
+        startTime: new Date("2024-01-01T10:00:00Z"),
+        endTime: new Date("2024-03-26T10:00:00Z"), // ~85 days
+        priceHourly: null,
+        priceDaily: 1000,
+        priceWeekly: null,
+        depositAmount: 0,
+        deliveryMethod: "pickup",
+        deliveryFee: 0,
+        protectionPlan: "none",
+        serviceFeeRate: 0.12,
+      });
+
+      expect(result.rental_days).toBeLessThan(90);
+    });
+  });
+
+  describe("calculatePricing - Edge Cases", () => {
+    test("should use weekly rate when cheaper for 5 days", () => {
+      const result = calculatePricing({
+        startTime: new Date("2024-01-01T10:00:00Z"),
+        endTime: new Date("2024-01-06T10:00:00Z"), // 5 days
+        priceHourly: null,
+        priceDaily: 1500,
+        priceWeekly: 6000, // Weekly is cheaper (6000 vs 5*1500=7500)
+        depositAmount: 0,
+        deliveryMethod: "pickup",
+        deliveryFee: 0,
+        protectionPlan: "none",
+        serviceFeeRate: 0.12,
+      });
+
+      expect(result.subtotal).toBe(6000); // Uses weekly rate
+    });
+
+    test("should use daily rate when cheaper for 5 days", () => {
+      const result = calculatePricing({
+        startTime: new Date("2024-01-01T10:00:00Z"),
+        endTime: new Date("2024-01-06T10:00:00Z"), // 5 days
+        priceHourly: null,
+        priceDaily: 1000, // Daily is cheaper (5*1000=5000 vs 7000)
+        priceWeekly: 7000,
+        depositAmount: 0,
+        deliveryMethod: "pickup",
+        deliveryFee: 0,
+        protectionPlan: "none",
+        serviceFeeRate: 0.12,
+      });
+
+      expect(result.subtotal).toBe(5000); // Uses daily rate
+    });
+
+    test("should use daily rate for short rental when no hourly price", () => {
+      const result = calculatePricing({
+        startTime: new Date("2024-01-01T10:00:00Z"),
+        endTime: new Date("2024-01-01T15:00:00Z"), // 5 hours
+        priceHourly: null, // No hourly rate
+        priceDaily: 1000,
+        priceWeekly: null,
+        depositAmount: 0,
+        deliveryMethod: "pickup",
+        deliveryFee: 0,
+        protectionPlan: "none",
+        serviceFeeRate: 0.12,
+      });
+
+      expect(result.subtotal).toBe(1000); // Falls back to daily rate
     });
   });
 });

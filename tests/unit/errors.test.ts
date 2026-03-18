@@ -14,7 +14,7 @@ import {
   isAppError,
   getErrorCode,
   getStatusCode,
-} from "../../src/lib/errors";
+} from "../../src/shared/lib/errors";
 
 describe("Errors", () => {
   describe("AppError", () => {

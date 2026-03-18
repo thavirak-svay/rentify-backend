@@ -1,8 +1,8 @@
 # Rentify — Architecture Document
 
-> **Version**: 1.0
+> **Version**: 2.0
 > **Last Updated**: 2026-03-18
-> **Status**: Implemented
+> **Status**: Modular Monolith Architecture
 
 ---
 
@@ -174,7 +174,7 @@ CREATE TABLE bookings (
   listing_id UUID REFERENCES listings(id),
   renter_id UUID REFERENCES profiles(id),
   owner_id UUID REFERENCES profiles(id),
-  status TEXT DEFAULT 'pending',
+  status booking_status DEFAULT 'requested',  -- requested, approved, declined, auto_declined, active, completed, cancelled, disputed, resolved
   start_time TIMESTAMPTZ,
   end_time TIMESTAMPTZ,
   subtotal INT,
@@ -189,47 +189,56 @@ CREATE TABLE bookings (
 ## Booking State Machine
 
 ```
-                    ┌─────────────────────────────────────┐
-                    │                                     │
-                    ▼                                     │
-              ┌──────────┐                                │
-              │ pending  │                                │
-              └────┬─────┘                                │
-                   │                                      │
-         ┌─────────┼─────────┐                            │
-         ▼         ▼         ▼                            │
-   ┌──────────┐ ┌──────────┐ ┌──────────┐                │
-   │ approved │ │ declined │ │ cancelled│                │
-   └────┬─────┘ └──────────┘ └──────────┘                │
-        │                                                │
-        ▼                                                │
-   ┌──────────┐                                          │
-   │  active  │──────────────────────────────┐          │
-   └────┬─────┘                              │          │
-        │                                    ▼          │
-        │                              ┌──────────┐     │
-        │                              │ disputed │     │
-        │                              └────┬─────┘     │
-        │                                   │           │
-        └───────────────────────────────────┼───────────┘
-                                            ▼
-                                      ┌──────────┐
-                                      │completed │
-                                      └──────────┘
+                              ┌─────────────────────────────────────┐
+                              │                                     │
+                              ▼                                     │
+                        ┌──────────┐                                │
+                        │ requested│                                │
+                        └────┬─────┘                                │
+                             │                                      │
+           ┌─────────────────┼─────────────────┐                    │
+           ▼                 ▼                 ▼                    │
+     ┌──────────┐     ┌──────────┐      ┌──────────┐              │
+     │ approved │     │ declined │      │cancelled │              │
+     │          │     │          │      │          │              │
+     │          │     └──────────┘      └──────────┘              │
+     └────┬─────┘     ┌──────────┐                                 │
+          │           │auto_     │                                 │
+          │           │declined  │                                 │
+          │           └──────────┘                                 │
+          ▼                                                        │
+     ┌──────────┐                                                  │
+     │  active  │──────────────────────────────┐                  │
+     └────┬─────┘                              │                  │
+          │                                    ▼                  │
+          │                              ┌──────────┐             │
+          │                              │ disputed │             │
+          │                              └────┬─────┘             │
+          │                                   │                   │
+          └───────────────────────────────────┼───────────────────┘
+                                              ▼
+                                        ┌──────────┐
+                                        │completed │
+                                        └──────────┘
+                                        ┌──────────┐
+                                        │ resolved │
+                                        └──────────┘
 ```
 
 ### Valid Transitions
 
 | From | To | Allowed By | Trigger |
 |------|----|-----------:|---------|
-| pending | approved | owner | Manual approve |
-| pending | declined | owner | Manual decline |
-| pending | cancelled | renter | Cancel request |
+| requested | approved | owner | Manual approve (after payment auth) |
+| requested | declined | owner | Manual decline |
+| requested | auto_declined | system | Timeout (no response within 24h) |
+| requested | cancelled | renter/owner | Cancel before approval |
 | approved | active | owner | Handoff confirmed |
-| approved | cancelled | either | Cancel before start |
+| approved | cancelled | either | Cancel before handoff |
 | active | completed | owner | Return confirmed |
 | active | disputed | either | Report issue |
-| disputed | completed | admin | Resolution |
+| active | cancelled | either | Cancel during rental (triggers refund) |
+| disputed | resolved | admin | Resolution |
 
 ---
 
@@ -271,8 +280,11 @@ CREATE TABLE bookings (
 ### Payments
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/v1/payments/initiate` | Start payment |
-| POST | `/v1/payments/callback` | PayWay callback |
+| POST | `/v1/payments/payway-callback` | PayWay payment callback (webhook) |
+| GET | `/v1/payments/:id/status` | Get transaction status |
+| POST | `/v1/payments/:id/refund` | Refund a transaction |
+
+> **Note**: Payment is initiated automatically when creating a booking via `POST /v1/bookings`. The callback endpoint is called by PayWay after payment completion.
 
 ### Messaging
 | Method | Endpoint | Description |
@@ -358,6 +370,87 @@ CREATE POLICY "listings_insert" ON listings FOR INSERT
 │  └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Modular Monolith Architecture (v2.0)
+
+### Project Structure
+
+```
+src/
+├── constants/           # Centralized constants
+│   ├── index.ts         # Re-exports all constants
+│   ├── pricing.ts       # MAX_RENTAL_DAYS, PROTECTION_RATES, FEE_RATES
+│   ├── booking.ts       # BOOKING_STATUS, VALID_TRANSITIONS
+│   ├── payment.ts       # PAYWAY_ENDPOINTS, MERCHANT_ENDPOINTS
+│   └── compensation.ts  # COMPENSATION_TYPES, COMPENSATION_STATUS
+│
+├── modules/             # Self-contained business modules
+│   ├── pricing/         # Strategy pattern for pricing calculations
+│   │   ├── index.ts
+│   │   ├── pricing-calculator.ts
+│   │   └── pricing.validation.ts
+│   ├── payment/         # Factory pattern for payment gateways
+│   │   ├── index.ts
+│   │   ├── payment-gateway.interface.ts
+│   │   ├── payment-factory.ts
+│   │   └── payway-gateway.ts
+│   ├── booking/         # Repository pattern for data access
+│   │   ├── index.ts
+│   │   └── booking.repository.ts
+│   └── compensation/     # Compensation queue module
+│       └── index.ts
+│
+├── shared/              # Shared utilities
+│   ├── lib/
+│   │   ├── index.ts
+│   │   └── errors.ts    # Centralized error classes
+│   └── repositories/
+│       ├── index.ts
+│       └── base.repository.ts
+│
+├── lib/                 # Legacy (re-exports from modules)
+├── services/            # Business logic services
+├── routes/              # API route handlers
+├── middleware/          # Hono middleware
+├── config/              # Configuration
+└── types/               # TypeScript types
+```
+
+### Design Patterns Applied
+
+| Pattern | Module | Implementation |
+|---------|--------|----------------|
+| **Strategy** | Pricing | `PricingStrategy` interface with `HourlyPricingStrategy`, `DailyPricingStrategy`, `WeeklyPricingStrategy` |
+| **Factory** | Payment | `PaymentGatewayFactory.create("payway")` for gateway instantiation |
+| **Repository** | Booking | `BookingRepository` with CRUD operations and domain-specific queries |
+
+### Import Aliases
+
+```typescript
+// Constants
+import { MAX_RENTAL_DAYS, BOOKING_STATUS } from "@/constants";
+
+// Modules (new pattern)
+import { calculatePricing } from "@/modules/pricing";
+import { getPaymentGateway } from "@/modules/payment";
+import { BookingRepository } from "@/modules/booking";
+
+// Shared (new pattern)
+import { AppError, ValidationError } from "@/shared/lib/errors";
+
+// Legacy (still works, re-exports from modules)
+import { calculatePricing } from "@/lib/pricing";
+import { AppError } from "@/lib/errors";
+```
+
+### Migration Strategy
+
+1. **Phase 1** ✅ Complete: Create new modular structure with patterns
+2. **Phase 2** ✅ Complete: Update legacy files to re-export from modules
+3. **Phase 3**: Gradually migrate all imports to use new module paths
+4. **Phase 4**: Remove legacy re-export files once migration complete
 
 ---
 *This architecture document guides all technical decisions.*

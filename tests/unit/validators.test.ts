@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createListingSchema, updateListingSchema, listingIdSchema } from "../../src/lib/validators";
+import { createListingSchema, updateListingSchema, listingIdSchema } from "../../src/shared/lib/validation";
 
 describe("Validators", () => {
   describe("createListingSchema", () => {

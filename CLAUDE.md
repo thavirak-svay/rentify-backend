@@ -78,7 +78,7 @@ Superpowers systematic-debugging auto-triggers when issues arise.
 - Zod validation on all inputs
 
 ### Error Handling
-- Use custom error classes from `src/lib/errors.ts`
+- Use custom error classes from `src/shared/lib/errors.ts`
 - Never throw generic `Error`
 - All errors logged via middleware
 
