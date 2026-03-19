@@ -40,6 +40,9 @@ describe("Message Service", () => {
                 single: () => Promise.resolve({ data: mockThread, error: null }),
               }),
             }),
+            update: () => ({
+              eq: () => Promise.resolve({ data: null, error: null }),
+            }),
           };
         }
         if (table === "messages") {
@@ -222,6 +225,9 @@ describe("Message Service", () => {
                   single: () => Promise.resolve({ data: mockThread, error: null }),
                 }),
               }),
+              update: () => ({
+                eq: () => Promise.resolve({ data: null, error: null }),
+              }),
             };
           }
           return {
@@ -241,7 +247,7 @@ describe("Message Service", () => {
 
       await expect(
         messageService.sendMessage(mockClient, "thread-123", "user-1", "Hello!")
-      ).rejects.toThrow("Failed to send message: Insert failed");
+      ).rejects.toThrow("Failed to create message: Insert failed");
     });
 
     test("should send message and create notification", async () => {
@@ -253,6 +259,9 @@ describe("Message Service", () => {
                 eq: () => ({
                   single: () => Promise.resolve({ data: mockThread, error: null }),
                 }),
+              }),
+              update: () => ({
+                eq: () => Promise.resolve({ data: null, error: null }),
               }),
             };
           }

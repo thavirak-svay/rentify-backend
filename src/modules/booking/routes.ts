@@ -4,8 +4,8 @@ import { z } from 'zod';
 import type { Env } from '@/config/env';
 import { DELIVERY_METHOD, PROTECTION_PLAN } from '@/constants/payment';
 import { BookingSchema } from '@/shared/lib/api-schemas';
-import { AuthenticationError } from '@/shared/lib/errors';
 import { bearerAuth, createDataResponseFactory, dataArrayResponse, jsonContent, uuidParam } from '@/shared/lib/openapi';
+import { getAuthContext, getContext } from '@/shared/lib/route-context';
 import { optionalAuth } from '@/shared/middleware/auth';
 import type { Variables } from '@/shared/types/context';
 import * as bookingService from './service';
@@ -40,13 +40,9 @@ bookings.post(
   }),
   validator('json', createBookingSchema),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const env = c.get('env');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
+    const { supabase, env, userId } = getAuthContext(c);
     const input = c.req.valid('json');
-    const result = await bookingService.createBooking(supabaseAdmin, env, userId, input);
+    const result = await bookingService.createBooking(supabase, env, userId, input);
     return c.json({ data: result }, 201);
   },
 );
@@ -61,13 +57,10 @@ bookings.get(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
+    const { supabase, userId } = getAuthContext(c);
     const { id } = c.req.valid('param');
-    const data = await bookingService.getBooking(supabaseAdmin, id, userId);
-    return c.json({ data: data });
+    const data = await bookingService.getBooking(supabase, id, userId);
+    return c.json({ data });
   },
 );
 
@@ -81,13 +74,10 @@ bookings.get(
   }),
   validator('query', z.object({ role: z.enum(['renter', 'owner']).optional() })),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
+    const { supabase, userId } = getAuthContext(c);
     const { role } = c.req.valid('query');
-    const data = await bookingService.getUserBookings(supabaseAdmin, userId, role);
-    return c.json({ data: data });
+    const data = await bookingService.getUserBookings(supabase, userId, role);
+    return c.json({ data });
   },
 );
 
@@ -101,14 +91,10 @@ bookings.post(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const env = c.get('env');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
+    const { supabase, env, userId } = getAuthContext(c);
     const { id } = c.req.valid('param');
-    const data = await bookingService.approveBooking(supabaseAdmin, env, id, userId);
-    return c.json({ data: data });
+    const data = await bookingService.approveBooking(supabase, env, id, userId);
+    return c.json({ data });
   },
 );
 
@@ -122,14 +108,10 @@ bookings.post(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const env = c.get('env');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
+    const { supabase, env, userId } = getAuthContext(c);
     const { id } = c.req.valid('param');
-    const data = await bookingService.declineBooking(supabaseAdmin, env, id, userId);
-    return c.json({ data: data });
+    const data = await bookingService.declineBooking(supabase, env, id, userId);
+    return c.json({ data });
   },
 );
 
@@ -144,15 +126,11 @@ bookings.post(
   validator('param', uuidParam),
   validator('json', cancelBookingSchema),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const env = c.get('env');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
+    const { supabase, env, userId } = getAuthContext(c);
     const { id } = c.req.valid('param');
     const { reason } = c.req.valid('json');
-    const data = await bookingService.cancelBooking(supabaseAdmin, env, id, userId, reason);
-    return c.json({ data: data });
+    const data = await bookingService.cancelBooking(supabase, env, id, userId, reason);
+    return c.json({ data });
   },
 );
 
@@ -165,10 +143,10 @@ bookings.post(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
+    const { supabase } = getContext(c);
     const { id } = c.req.valid('param');
-    const data = await bookingService.activateBooking(supabaseAdmin, id);
-    return c.json({ data: data });
+    const data = await bookingService.activateBooking(supabase, id);
+    return c.json({ data });
   },
 );
 
@@ -181,10 +159,10 @@ bookings.post(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
+    const { supabase } = getContext(c);
     const { id } = c.req.valid('param');
-    const data = await bookingService.completeBooking(supabaseAdmin, id);
-    return c.json({ data: data });
+    const data = await bookingService.completeBooking(supabase, id);
+    return c.json({ data });
   },
 );
 

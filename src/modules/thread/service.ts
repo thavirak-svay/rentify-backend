@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DEFAULT_MESSAGE_LIMIT, MAX_MESSAGE_PREVIEW_LENGTH } from '@/constants/message';
-import { DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '@/shared/lib/errors';
+import { fetchOne, insertOne } from '@/shared/lib/db-helpers';
+import { ForbiddenError, NotFoundError, ValidationError } from '@/shared/lib/errors';
+import { timestamp } from '@/shared/lib/timestamp';
+import { requireThreadParticipant } from '@/shared/lib/validators';
+import { notifyNewMessage } from '@/shared/services/notification';
 import type { Message, MessageThread } from '@/shared/types/database';
 
 export interface CreateThreadInput {
@@ -9,181 +13,134 @@ export interface CreateThreadInput {
   participant_ids: string[];
 }
 
-export interface MessageRepository {
-  createThread(input: CreateThreadInput, userId: string): Promise<MessageThread>;
-  findThreadById(id: string): Promise<MessageThread>;
-  findUserThreads(userId: string): Promise<MessageThread[]>;
-  sendMessage(threadId: string, senderId: string, content: string): Promise<Message>;
-  findMessages(threadId: string, userId: string, limit?: number, before?: string): Promise<Message[]>;
-  markAsRead(threadId: string, userId: string): Promise<void>;
+export async function createThread(
+  supabase: SupabaseClient,
+  userId: string,
+  input: CreateThreadInput,
+): Promise<MessageThread> {
+  if (!input.participant_ids || input.participant_ids.length === 0) {
+    throw new ValidationError('At least one participant is required');
+  }
+  if (!input.participant_ids.includes(userId)) {
+    throw new ForbiddenError('You must be a participant in the thread');
+  }
+
+  return insertOne<MessageThread>(
+    supabase,
+    'message_threads',
+    {
+      listing_id: input.listing_id,
+      booking_id: input.booking_id,
+      participant_ids: input.participant_ids,
+    },
+    'Thread',
+  );
 }
 
-export function createMessageRepository(supabaseAdmin: SupabaseClient): MessageRepository {
-  async function findThreadById(id: string): Promise<MessageThread> {
-    const { data: thread, error } = await supabaseAdmin.from('message_threads').select().eq('id', id).single();
-
-    if (error || !thread) {
-      throw new NotFoundError('Thread not found');
-    }
-
-    return thread;
-  }
-
-  async function createThread(input: CreateThreadInput, userId: string): Promise<MessageThread> {
-    if (!input.participant_ids || input.participant_ids.length === 0) {
-      throw new ValidationError('At least one participant is required');
-    }
-    if (!input.participant_ids.includes(userId)) {
-      throw new ForbiddenError('You must be a participant in the thread');
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from('message_threads')
-      .insert({
-        listing_id: input.listing_id,
-        booking_id: input.booking_id,
-        participant_ids: input.participant_ids,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      throw new DatabaseError(`Failed to create thread: ${error.message}`);
-    }
-
-    return data;
-  }
-
-  async function findUserThreads(userId: string): Promise<MessageThread[]> {
-    const { data, error } = await supabaseAdmin
-      .from('message_threads')
-      .select()
-      .contains('participant_ids', [userId])
-      .order('last_message_at', { ascending: false, nullsFirst: false });
-
-    if (error) {
-      throw new DatabaseError(`Failed to get threads: ${error.message}`);
-    }
-
-    return data || [];
-  }
-
-  async function sendMessage(threadId: string, senderId: string, content: string): Promise<Message> {
-    const thread = await findThreadById(threadId);
-
-    if (!thread.participant_ids.includes(senderId)) {
-      throw new ForbiddenError('Not a participant in this thread');
-    }
-
-    const { data: message, error } = await supabaseAdmin
-      .from('messages')
-      .insert({
-        thread_id: threadId,
-        sender_id: senderId,
-        content,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      throw new DatabaseError(`Failed to send message: ${error.message}`);
-    }
-
-    const otherParticipants = thread.participant_ids.filter((id) => id !== senderId);
-    notifyParticipants(supabaseAdmin, otherParticipants, senderId, message).catch((_err) => {
-      // Notification failure is non-blocking
-    });
-
-    return message;
-  }
-
-  async function findMessages(threadId: string, userId: string, limit = DEFAULT_MESSAGE_LIMIT, before?: string): Promise<Message[]> {
-    const thread = await findThreadById(threadId);
-
-    if (!thread.participant_ids.includes(userId)) {
-      throw new ForbiddenError('You are not a participant in this thread');
-    }
-
-    let query = supabaseAdmin.from('messages').select().eq('thread_id', threadId).order('created_at', { ascending: false }).limit(limit);
-
-    if (before) {
-      query = query.lt('created_at', before);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new DatabaseError(`Failed to get messages: ${error.message}`);
-    }
-
-    return (data || []).reverse();
-  }
-
-  async function markAsRead(threadId: string, userId: string): Promise<void> {
-    const thread = await findThreadById(threadId);
-
-    if (!thread.participant_ids.includes(userId)) {
-      throw new ForbiddenError('You are not a participant in this thread');
-    }
-
-    await supabaseAdmin
-      .from('messages')
-      .update({ read_at: new Date().toISOString() })
-      .eq('thread_id', threadId)
-      .neq('sender_id', userId)
-      .is('read_at', null);
-  }
-
-  return {
-    createThread,
-    findThreadById,
-    findUserThreads,
-    sendMessage,
-    findMessages,
-    markAsRead,
-  };
-}
-
-async function notifyParticipants(supabaseAdmin: SupabaseClient, participantIds: string[], senderId: string, message: Message): Promise<void> {
-  const { data: sender } = await supabaseAdmin.from('profiles').select('display_name').eq('id', senderId).single();
-
-  const notifications = participantIds.map((participantId) => ({
-    user_id: participantId,
-    type: 'message.new',
-    title: `New message from ${sender?.display_name || 'Someone'}`,
-    body: message.content.slice(0, MAX_MESSAGE_PREVIEW_LENGTH),
-    data: { thread_id: message.thread_id, message_id: message.id },
-  }));
-
-  await supabaseAdmin.from('notifications').insert(notifications);
-}
-
-export async function createThread(supabaseAdmin: SupabaseClient, userId: string, input: CreateThreadInput): Promise<MessageThread> {
-  return await createMessageRepository(supabaseAdmin).createThread(input, userId);
-}
-
-export async function getThread(supabaseAdmin: SupabaseClient, threadId: string, userId: string): Promise<MessageThread> {
-  const thread = await createMessageRepository(supabaseAdmin).findThreadById(threadId);
-
-  if (!thread.participant_ids.includes(userId)) {
-    throw new ForbiddenError('You are not a participant in this thread');
-  }
-
+export async function getThread(supabase: SupabaseClient, threadId: string, userId: string): Promise<MessageThread> {
+  const thread = await fetchOne<MessageThread>(supabase, 'message_threads', { id: threadId }, 'Thread');
+  requireThreadParticipant(thread, userId);
   return thread;
 }
 
-export async function getUserThreads(supabaseAdmin: SupabaseClient, userId: string): Promise<MessageThread[]> {
-  return await createMessageRepository(supabaseAdmin).findUserThreads(userId);
+export async function getUserThreads(supabase: SupabaseClient, userId: string): Promise<MessageThread[]> {
+  const { data, error } = await supabase
+    .from('message_threads')
+    .select()
+    .contains('participant_ids', [userId])
+    .order('last_message_at', { ascending: false, nullsFirst: false });
+
+  if (error) {
+    throw new NotFoundError(`Failed to get threads: ${error.message}`);
+  }
+
+  return data || [];
 }
 
-export async function sendMessage(supabaseAdmin: SupabaseClient, threadId: string, senderId: string, content: string): Promise<Message> {
-  return await createMessageRepository(supabaseAdmin).sendMessage(threadId, senderId, content);
+export async function sendMessage(
+  supabase: SupabaseClient,
+  threadId: string,
+  senderId: string,
+  content: string,
+): Promise<Message> {
+  const thread = await fetchOne<MessageThread>(supabase, 'message_threads', { id: threadId }, 'Thread');
+
+  if (!thread.participant_ids.includes(senderId)) {
+    throw new ForbiddenError('Not a participant in this thread');
+  }
+
+  const message = await insertOne<Message>(
+    supabase,
+    'messages',
+    {
+      thread_id: threadId,
+      sender_id: senderId,
+      content,
+    },
+    'Message',
+  );
+
+  // Update thread's last_message_at
+  await supabase
+    .from('message_threads')
+    .update({ last_message_at: timestamp.now(), last_message_preview: content.slice(0, MAX_MESSAGE_PREVIEW_LENGTH) })
+    .eq('id', threadId);
+
+  // Notify other participants (non-blocking)
+  const otherParticipants = thread.participant_ids.filter((id) => id !== senderId);
+  notifyNewMessage(supabase, {
+    participantIds: otherParticipants,
+    senderId,
+    threadId,
+    messageId: message.id,
+    content,
+  }).catch(() => {});
+
+  return message;
 }
 
-export async function getMessages(supabaseAdmin: SupabaseClient, threadId: string, userId: string, limit = DEFAULT_MESSAGE_LIMIT, before?: string): Promise<Message[]> {
-  return await createMessageRepository(supabaseAdmin).findMessages(threadId, userId, limit, before);
+export async function getMessages(
+  supabase: SupabaseClient,
+  threadId: string,
+  userId: string,
+  limit = DEFAULT_MESSAGE_LIMIT,
+  before?: string,
+): Promise<Message[]> {
+  const thread = await fetchOne<MessageThread>(supabase, 'message_threads', { id: threadId }, 'Thread');
+  requireThreadParticipant(thread, userId);
+
+  let query = supabase
+    .from('messages')
+    .select()
+    .eq('thread_id', threadId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (before) {
+    query = query.lt('created_at', before);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new NotFoundError(`Failed to get messages: ${error.message}`);
+  }
+
+  return (data || []).reverse();
 }
 
-export async function markMessagesAsRead(supabaseAdmin: SupabaseClient, threadId: string, userId: string): Promise<void> {
-  return await createMessageRepository(supabaseAdmin).markAsRead(threadId, userId);
+export async function markMessagesAsRead(
+  supabase: SupabaseClient,
+  threadId: string,
+  userId: string,
+): Promise<void> {
+  const thread = await fetchOne<MessageThread>(supabase, 'message_threads', { id: threadId }, 'Thread');
+  requireThreadParticipant(thread, userId);
+
+  await supabase
+    .from('messages')
+    .update({ read_at: timestamp.now() })
+    .eq('thread_id', threadId)
+    .neq('sender_id', userId)
+    .is('read_at', null);
 }

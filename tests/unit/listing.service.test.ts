@@ -153,7 +153,7 @@ describe("Listing Service", () => {
           "other-user",
           { title: "Updated Title" }
         )
-      ).rejects.toThrow("You can only update your own listings");
+      ).rejects.toThrow("You can only modify your own listing");
     });
   });
 
@@ -165,7 +165,7 @@ describe("Listing Service", () => {
     test("should throw error when user is not owner", async () => {
       await expect(
         listingService.deleteListing(createMockClient(mockListing), "listing-123", "other-user")
-      ).rejects.toThrow("You can only delete your own listings");
+      ).rejects.toThrow("You can only modify your own listing");
     });
   });
 
@@ -198,7 +198,7 @@ describe("Listing Service", () => {
     test("should throw error when user is not owner", async () => {
       await expect(
         listingService.publishListing(createMockClient(mockListing), "listing-123", "other-user")
-      ).rejects.toThrow("You can only publish your own listings");
+      ).rejects.toThrow("You can only modify your own listing");
     });
 
     test("should throw error when listing is not draft", async () => {

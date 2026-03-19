@@ -1,12 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BOOKING_STATUS } from '@/constants/booking';
 import { LISTING_STATUS } from '@/constants/listing';
-import { ConflictError, DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '@/shared/lib/errors';
+import { fetchMany, softDeleteOne, updateOne } from '@/shared/lib/db-helpers';
+import { ConflictError, NotFoundError, ValidationError } from '@/shared/lib/errors';
+import { timestamp } from '@/shared/lib/timestamp';
+import { requireOwnership } from '@/shared/lib/validators';
 import type { CreateListingInput, UpdateListingInput } from '@/shared/lib/validation';
 import type { Listing, ListingMedia } from '@/shared/types/database';
 
 function validateCoordinates(lat: number | undefined, lng: number | undefined): void {
-  // Both lat and lng must be provided together, or neither
   const hasLat = lat !== undefined;
   const hasLng = lng !== undefined;
 
@@ -24,7 +26,11 @@ function validateCoordinates(lat: number | undefined, lng: number | undefined): 
   }
 }
 
-export async function createListing(supabase: SupabaseClient, ownerId: string, input: CreateListingInput): Promise<Listing> {
+export async function createListing(
+  supabase: SupabaseClient,
+  ownerId: string,
+  input: CreateListingInput,
+): Promise<Listing> {
   if (input.location) {
     validateCoordinates(input.location.lat, input.location.lng);
   }
@@ -58,7 +64,7 @@ export async function createListing(supabase: SupabaseClient, ownerId: string, i
     .select()
     .single();
 
-  if (error) throw new DatabaseError(`Failed to create listing: ${error.message}`);
+  if (error) throw new NotFoundError(`Failed to create listing: ${error.message}`);
 
   return data;
 }
@@ -70,16 +76,28 @@ export async function getListing(supabase: SupabaseClient, id: string): Promise<
   return data;
 }
 
-export async function getListingWithMedia(supabase: SupabaseClient, id: string): Promise<{ listing: Listing; media: ListingMedia[] }> {
+export async function getListingWithMedia(
+  supabase: SupabaseClient,
+  id: string,
+): Promise<{ listing: Listing; media: ListingMedia[] }> {
   const listing = await getListing(supabase, id);
-  const { data: media } = await supabase.from('listing_media').select('*').eq('listing_id', id).order('sort_order');
+  const media = await fetchMany<ListingMedia>(supabase, 'listing_media', {
+    column: 'listing_id',
+    value: id,
+    orderBy: { column: 'sort_order' },
+  });
 
-  return { listing: listing, media: media || [] };
+  return { listing, media };
 }
 
-export async function updateListing(supabase: SupabaseClient, id: string, userId: string, input: UpdateListingInput): Promise<Listing> {
+export async function updateListing(
+  supabase: SupabaseClient,
+  id: string,
+  userId: string,
+  input: UpdateListingInput,
+): Promise<Listing> {
   const listing = await getListing(supabase, id);
-  if (listing.owner_id !== userId) throw new ForbiddenError('You can only update your own listings');
+  requireOwnership(listing, userId, 'listing');
 
   if (input.location) {
     validateCoordinates(input.location.lat, input.location.lng);
@@ -88,15 +106,12 @@ export async function updateListing(supabase: SupabaseClient, id: string, userId
   const updateData: Record<string, unknown> = { ...input };
   if (location) updateData.location = location;
 
-  const { data, error } = await supabase.from('listings').update(updateData).eq('id', id).select().single();
-
-  if (error) throw new DatabaseError(`Failed to update listing: ${error.message}`);
-  return data;
+  return updateOne<Listing>(supabase, 'listings', id, updateData, 'Listing');
 }
 
 export async function deleteListing(supabase: SupabaseClient, id: string, userId: string): Promise<void> {
   const listing = await getListing(supabase, id);
-  if (listing.owner_id !== userId) throw new ForbiddenError('You can only delete your own listings');
+  requireOwnership(listing, userId, 'listing');
 
   // Check for active bookings
   const { data: activeBookings } = await supabase
@@ -109,32 +124,32 @@ export async function deleteListing(supabase: SupabaseClient, id: string, userId
     throw new ConflictError('Cannot delete listing with active bookings');
   }
 
-  const { error } = await supabase.from('listings').update({ deleted_at: new Date().toISOString() }).eq('id', id);
-
-  if (error) throw new DatabaseError(`Failed to delete listing: ${error.message}`);
+  await softDeleteOne(supabase, 'listings', id, 'Listing');
 }
 
 export async function publishListing(supabase: SupabaseClient, id: string, userId: string): Promise<Listing> {
   const listing = await getListing(supabase, id);
-  if (listing.owner_id !== userId) throw new ForbiddenError('You can only publish your own listings');
-  if (listing.status !== LISTING_STATUS.DRAFT) throw new ValidationError('Only draft listings can be published');
+  requireOwnership(listing, userId, 'listing');
 
-  const { data, error } = await supabase
-    .from('listings')
-    .update({ status: LISTING_STATUS.ACTIVE, published_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single();
+  if (listing.status !== LISTING_STATUS.DRAFT) {
+    throw new ValidationError('Only draft listings can be published');
+  }
 
-  if (error) throw new DatabaseError(`Failed to publish listing: ${error.message}`);
-  return data;
+  return updateOne<Listing>(supabase, 'listings', id, { status: LISTING_STATUS.ACTIVE, published_at: timestamp.now() }, 'Listing');
 }
 
-export async function getUserListings(supabase: SupabaseClient, userId: string, status?: string): Promise<Listing[]> {
+export async function getUserListings(
+  supabase: SupabaseClient,
+  userId: string,
+  status?: string,
+): Promise<Listing[]> {
   let query = supabase.from('listings').select('*').eq('owner_id', userId).is('deleted_at', null).order('created_at', { ascending: false });
 
-  if (status) query = query.eq('status', status);
+  if (status) {
+    query = query.eq('status', status);
+  }
+
   const { data, error } = await query;
-  if (error) throw new DatabaseError(`Failed to get listings: ${error.message}`);
+  if (error) throw new NotFoundError(`Failed to get listings: ${error.message}`);
   return data || [];
 }

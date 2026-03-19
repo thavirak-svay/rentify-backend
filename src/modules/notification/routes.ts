@@ -5,8 +5,8 @@ import type { Env } from '@/config/env';
 import { DEFAULT_MESSAGE_LIMIT } from '@/constants/message';
 import { MAX_PAGE_LIMIT } from '@/constants/api';
 import { NotificationSchema } from '@/shared/lib/api-schemas';
-import { AuthenticationError } from '@/shared/lib/errors';
 import { bearerAuth, dataArrayResponse, jsonContent, successResponse, uuidParam } from '@/shared/lib/openapi';
+import { getAuthContext } from '@/shared/lib/route-context';
 import { optionalAuth } from '@/shared/middleware/auth';
 import type { Variables } from '@/shared/types/context';
 import * as notificationService from './service';
@@ -19,25 +19,22 @@ notifications.get(
   '/',
   describeRoute({
     tags: ['Notifications'],
-    summary: 'List user notifications',
+    summary: "Get user's notifications",
     security: bearerAuth,
     responses: { 200: dataArrayResponse(NotificationSchema, 'List of notifications') },
   }),
   validator(
     'query',
     z.object({
-      limit: z.coerce.number().int().min(1).max(MAX_PAGE_LIMIT).optional().default(DEFAULT_MESSAGE_LIMIT),
-      unread: z.enum(['true', 'false']).optional(),
+      limit: z.coerce.number().min(1).max(MAX_PAGE_LIMIT).default(DEFAULT_MESSAGE_LIMIT),
+      unread_only: z.coerce.boolean().default(false),
     }),
   ),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
-    const { limit, unread } = c.req.valid('query');
-    const data = await notificationService.getUserNotifications(supabaseAdmin, userId, limit, unread === 'true');
-    return c.json({ data: data });
+    const { supabase, userId } = getAuthContext(c);
+    const { limit, unread_only } = c.req.valid('query');
+    const data = await notificationService.getUserNotifications(supabase, userId, limit, unread_only);
+    return c.json({ data });
   },
 );
 
@@ -48,16 +45,13 @@ notifications.get(
     summary: 'Get unread notification count',
     security: bearerAuth,
     responses: {
-      200: jsonContent(z.object({ data: z.object({ count: z.number() }) }), 'Unread count'),
+      200: jsonContent(z.object({ count: z.number() }), 'Unread count'),
     },
   }),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
-    const count = await notificationService.getUnreadCount(supabaseAdmin, userId);
-    return c.json({ data: { count: count } });
+    const { supabase, userId } = getAuthContext(c);
+    const count = await notificationService.getUnreadCount(supabase, userId);
+    return c.json({ count });
   },
 );
 
@@ -71,18 +65,15 @@ notifications.post(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
+    const { supabase, userId } = getAuthContext(c);
     const { id } = c.req.valid('param');
-    await notificationService.markAsRead(supabaseAdmin, id, userId);
+    await notificationService.markAsRead(supabase, id, userId);
     return c.json({ success: true });
   },
 );
 
 notifications.post(
-  '/mark-all-read',
+  '/read-all',
   describeRoute({
     tags: ['Notifications'],
     summary: 'Mark all notifications as read',
@@ -90,11 +81,8 @@ notifications.post(
     responses: { 200: successResponse('All notifications marked as read') },
   }),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
-    await notificationService.markAllAsRead(supabaseAdmin, userId);
+    const { supabase, userId } = getAuthContext(c);
+    await notificationService.markAllAsRead(supabase, userId);
     return c.json({ success: true });
   },
 );

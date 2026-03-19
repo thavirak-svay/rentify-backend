@@ -7,7 +7,8 @@ import {
   MAX_DISPLAY_NAME_LENGTH,
   MIN_DISPLAY_NAME_LENGTH,
 } from '@/constants/user';
-import { DatabaseError, NotFoundError } from '@/shared/lib/errors';
+import { fetchOne, updateOne } from '@/shared/lib/db-helpers';
+import { timestamp } from '@/shared/lib/timestamp';
 import type { Profile } from '@/shared/types/database';
 
 export const updateProfileSchema = z.object({
@@ -23,78 +24,34 @@ export const updateProfileSchema = z.object({
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
-export interface UserRepository {
-  findById(id: string): Promise<Profile>;
-  findPublicById(id: string): Promise<Partial<Profile>>;
-  update(id: string, input: UpdateProfileInput): Promise<Profile>;
-  updateLastActive(id: string): Promise<void>;
+export async function getProfile(supabase: SupabaseClient, userId: string): Promise<Profile> {
+  return fetchOne<Profile>(supabase, 'profiles', { id: userId }, 'Profile');
 }
 
-export function createUserRepository(supabaseAdmin: SupabaseClient): UserRepository {
-  async function findById(id: string): Promise<Profile> {
-    const { data, error } = await supabaseAdmin.from('profiles').select().eq('id', id).single();
-
-    if (error || !data) {
-      throw new NotFoundError('Profile not found');
-    }
-
-    return data;
-  }
-
-  async function findPublicById(id: string): Promise<Partial<Profile>> {
-    const profile = await findById(id);
-
-    return {
-      id: profile.id,
-      display_name: profile.display_name,
-      avatar_url: profile.avatar_url,
-      bio: profile.bio,
-      rating_avg: profile.rating_avg,
-      rating_count: profile.rating_count,
-      completed_rentals: profile.completed_rentals,
-      identity_status: profile.identity_status,
-      created_at: profile.created_at,
-    };
-  }
-
-  async function update(id: string, input: UpdateProfileInput): Promise<Profile> {
-    const { data, error } = await supabaseAdmin.from('profiles').update(input).eq('id', id).select().single();
-
-    if (error) {
-      throw new DatabaseError(`Failed to update profile: ${error.message}`);
-    }
-
-    if (!data) {
-      throw new NotFoundError('Profile not found');
-    }
-
-    return data;
-  }
-
-  async function updateLastActive(id: string): Promise<void> {
-    await supabaseAdmin.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', id);
-  }
+export async function getPublicProfile(supabase: SupabaseClient, userId: string): Promise<Partial<Profile>> {
+  const profile = await getProfile(supabase, userId);
 
   return {
-    findById,
-    findPublicById,
-    update,
-    updateLastActive,
+    id: profile.id,
+    display_name: profile.display_name,
+    avatar_url: profile.avatar_url,
+    bio: profile.bio,
+    rating_avg: profile.rating_avg,
+    rating_count: profile.rating_count,
+    completed_rentals: profile.completed_rentals,
+    identity_status: profile.identity_status,
+    created_at: profile.created_at,
   };
 }
 
-export async function getProfile(supabaseAdmin: SupabaseClient, userId: string): Promise<Profile> {
-  return await createUserRepository(supabaseAdmin).findById(userId);
+export async function updateProfile(
+  supabase: SupabaseClient,
+  userId: string,
+  input: UpdateProfileInput,
+): Promise<Profile> {
+  return updateOne<Profile>(supabase, 'profiles', userId, input, 'Profile');
 }
 
-export async function getPublicProfile(supabaseAdmin: SupabaseClient, userId: string): Promise<Partial<Profile>> {
-  return await createUserRepository(supabaseAdmin).findPublicById(userId);
-}
-
-export async function updateProfile(supabaseAdmin: SupabaseClient, userId: string, input: UpdateProfileInput): Promise<Profile> {
-  return await createUserRepository(supabaseAdmin).update(userId, input);
-}
-
-export async function updateLastActive(supabaseAdmin: SupabaseClient, userId: string): Promise<void> {
-  return await createUserRepository(supabaseAdmin).updateLastActive(userId);
+export async function updateLastActive(supabase: SupabaseClient, userId: string): Promise<void> {
+  await supabase.from('profiles').update({ last_active_at: timestamp.now() }).eq('id', userId);
 }

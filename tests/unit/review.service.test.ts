@@ -220,7 +220,7 @@ describe("Review Service", () => {
     test("should throw error when fetch fails", async () => {
       const mockClient = createMockClient("reviews", null, { message: "DB error" });
       await expect(reviewService.getListingReviews(mockClient, "listing-123")).rejects.toThrow(
-        "Failed to get reviews: DB error"
+        "Failed to fetch from reviews: DB error"
       );
     });
   });
@@ -235,7 +235,7 @@ describe("Review Service", () => {
     test("should throw error when fetch fails", async () => {
       const mockClient = createMockClient("reviews", null, { message: "DB error" });
       await expect(reviewService.getUserReviews(mockClient, "user-123")).rejects.toThrow(
-        "Failed to get reviews: DB error"
+        "Failed to fetch from reviews: DB error"
       );
     });
   });

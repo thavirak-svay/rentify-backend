@@ -1,21 +1,19 @@
 import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
-
 import { z } from 'zod';
 import type { Env } from '@/config/env';
 import { LISTING_STATUS } from '@/constants/listing';
 import { ListingSchema, ListingWithMediaSchema } from '@/shared/lib/api-schemas';
-import { AuthenticationError } from '@/shared/lib/errors';
 import { bearerAuth, dataArrayResponse, dataResponse, successResponse, uuidParam } from '@/shared/lib/openapi';
+import { getAuthContext, getContext } from '@/shared/lib/route-context';
 import { optionalAuth } from '@/shared/middleware/auth';
 import type { Variables } from '@/shared/types/context';
 import * as listingService from './service';
+import { createListingSchema } from '@/shared/lib/validation';
 
 const listings = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 listings.use('*', optionalAuth);
-
-import { createListingSchema } from '@/shared/lib/validation';
 
 listings.post(
   '/',
@@ -27,13 +25,10 @@ listings.post(
   }),
   validator('json', createListingSchema),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
+    const { supabase, userId } = getAuthContext(c);
     const input = c.req.valid('json');
-    const data = await listingService.createListing(supabaseAdmin, userId, input);
-    return c.json({ data: data }, 201);
+    const data = await listingService.createListing(supabase, userId, input);
+    return c.json({ data }, 201);
   },
 );
 
@@ -46,9 +41,9 @@ listings.get(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
+    const { supabase } = getContext(c);
     const { id } = c.req.valid('param');
-    const { listing, media } = await listingService.getListingWithMedia(supabaseAdmin, id);
+    const { listing, media } = await listingService.getListingWithMedia(supabase, id);
     return c.json({ data: { ...listing, media } });
   },
 );
@@ -64,14 +59,11 @@ listings.patch(
   validator('param', uuidParam),
   validator('json', createListingSchema.partial()),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
+    const { supabase, userId } = getAuthContext(c);
     const { id } = c.req.valid('param');
     const input = c.req.valid('json');
-    const data = await listingService.updateListing(supabaseAdmin, id, userId, input);
-    return c.json({ data: data });
+    const data = await listingService.updateListing(supabase, id, userId, input);
+    return c.json({ data });
   },
 );
 
@@ -85,12 +77,9 @@ listings.delete(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
+    const { supabase, userId } = getAuthContext(c);
     const { id } = c.req.valid('param');
-    await listingService.deleteListing(supabaseAdmin, id, userId);
+    await listingService.deleteListing(supabase, id, userId);
     return c.json({ success: true });
   },
 );
@@ -105,13 +94,10 @@ listings.post(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
+    const { supabase, userId } = getAuthContext(c);
     const { id } = c.req.valid('param');
-    const data = await listingService.publishListing(supabaseAdmin, id, userId);
-    return c.json({ data: data });
+    const data = await listingService.publishListing(supabase, id, userId);
+    return c.json({ data });
   },
 );
 
@@ -130,13 +116,10 @@ listings.get(
     }),
   ),
   async (c) => {
-    const supabaseAdmin = c.get('supabaseAdmin');
-    const userId = c.get('userId');
-    if (!userId) throw new AuthenticationError();
-
+    const { supabase, userId } = getAuthContext(c);
     const { status } = c.req.valid('query');
-    const data = await listingService.getUserListings(supabaseAdmin, userId, status);
-    return c.json({ data: data });
+    const data = await listingService.getUserListings(supabase, userId, status);
+    return c.json({ data });
   },
 );
 
