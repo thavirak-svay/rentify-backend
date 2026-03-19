@@ -1,8 +1,3 @@
-/**
- * Booking Constants
- * Centralized booking configuration for Rentify marketplace
- */
-
 export const BOOKING_STATUS = {
   REQUESTED: 'requested',
   APPROVED: 'approved',
@@ -32,13 +27,13 @@ export const VALID_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
 };
 
 export const TRANSITION_ROLES = {
-  requested__approved: ['owner'],
-  requested__declined: ['owner'],
-  requested__cancelled: ['renter', 'owner'],
-  approved__active: ['owner'],
-  approved__cancelled: ['renter', 'owner'],
-  active__completed: ['owner'],
-  active__cancelled: ['renter', 'owner'],
-  active__disputed: ['renter', 'owner'],
-  disputed__resolved: ['admin'],
+  REQUESTED_TO_APPROVED: ['owner'],
+  REQUESTED_TO_DECLINED: ['owner'],
+  REQUESTED_TO_CANCELLED: ['renter', 'owner'],
+  APPROVED_TO_ACTIVE: ['owner'],
+  APPROVED_TO_CANCELLED: ['renter', 'owner'],
+  ACTIVE_TO_COMPLETED: ['owner'],
+  ACTIVE_TO_CANCELLED: ['renter', 'owner'],
+  ACTIVE_TO_DISPUTED: ['renter', 'owner'],
+  DISPUTED_TO_RESOLVED: ['admin'],
 } as const;

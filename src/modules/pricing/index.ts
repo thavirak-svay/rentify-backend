@@ -25,7 +25,7 @@ export {
 } from './calculator';
 export { PricingInputSchema, type PricingInputSchemaType } from './validation';
 
-import { ValidationError } from '../../shared/lib/errors';
+import { ValidationError } from '@/shared/lib/errors';
 import type { PricingInput, PricingResult } from './calculator';
 import { pricingCalculator } from './calculator';
 import { PricingInputSchema } from './validation';
@@ -35,9 +35,9 @@ import { PricingInputSchema } from './validation';
  * Main entry point for pricing calculations
  */
 export function calculatePricing(input: PricingInput): PricingResult {
-  const RESULT = PricingInputSchema.safeParse(input);
-  if (!RESULT.success) {
-    throw new ValidationError(`Invalid pricing input: ${RESULT.error.issues.map((i) => i.message).join('; ')}`);
+  const result = PricingInputSchema.safeParse(input);
+  if (!result.success) {
+    throw new ValidationError(`Invalid pricing input: ${result.error.issues.map((i) => i.message).join('; ')}`);
   }
   return pricingCalculator.calculate(input);
 }

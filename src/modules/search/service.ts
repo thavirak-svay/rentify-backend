@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { DatabaseError, ValidationError } from '../../shared/lib/errors';
+import { DatabaseError, ValidationError } from '@/shared/lib/errors';
 
-const SEARCH_PARAMS_SCHEMA = z.object({
+const searchParamsSchema = z.object({
   q: z.string().optional(),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
@@ -16,7 +16,7 @@ const SEARCH_PARAMS_SCHEMA = z.object({
   offset: z.number().min(0).default(0),
 });
 
-export type SearchParams = z.infer<typeof SEARCH_PARAMS_SCHEMA>;
+export type SearchParams = z.infer<typeof searchParamsSchema>;
 
 export interface SearchResult {
   id: string;
@@ -40,9 +40,9 @@ export interface SearchResult {
 
 export async function searchListings(supabaseAdmin: SupabaseClient, params: SearchParams): Promise<SearchResult[]> {
   // Validate that both lat and lng are provided together for location search
-  const HAS_LAT = params.lat !== undefined;
-  const HAS_LNG = params.lng !== undefined;
-  if (HAS_LAT !== HAS_LNG) {
+  const hasLat = params.lat !== undefined;
+  const hasLng = params.lng !== undefined;
+  if (hasLat !== hasLng) {
     throw new ValidationError('Both latitude and longitude must be provided together for location search');
   }
 

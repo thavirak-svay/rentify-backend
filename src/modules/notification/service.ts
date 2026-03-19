@@ -1,15 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { DatabaseError } from '../../shared/lib/errors';
-import type { Notification } from '../../shared/types/database';
+import { DatabaseError } from '@/shared/lib/errors';
+import type { Notification } from '@/shared/types/database';
 
 export async function getUserNotifications(supabaseAdmin: SupabaseClient, userId: string, limit = 50, unreadOnly = false): Promise<Notification[]> {
-  let QUERY = supabaseAdmin.from('notifications').select().eq('user_id', userId).order('created_at', { ascending: false }).limit(limit);
+  let query = supabaseAdmin.from('notifications').select().eq('user_id', userId).order('created_at', { ascending: false }).limit(limit);
 
   if (unreadOnly) {
-    QUERY = QUERY.is('read_at', null);
+    query = query.is('read_at', null);
   }
 
-  const { data, error } = await QUERY;
+  const { data, error } = await query;
 
   if (error) {
     throw new DatabaseError(`Failed to get notifications: ${error.message}`);

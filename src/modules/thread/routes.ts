@@ -1,19 +1,19 @@
 import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 import { z } from 'zod';
-import type { Env } from '../../config/env';
-import { MessageSchema, MessageThreadSchema } from '../../shared/lib/api-schemas';
-import { AuthenticationError } from '../../shared/lib/errors';
-import { bearerAuth, dataArrayResponse, dataResponse, successResponse, uuidParam } from '../../shared/lib/openapi';
-import { optionalAuth } from '../../shared/middleware/auth';
-import type { Variables } from '../../shared/types/context';
+import type { Env } from '@/config/env';
+import { MessageSchema, MessageThreadSchema } from '@/shared/lib/api-schemas';
+import { AuthenticationError } from '@/shared/lib/errors';
+import { bearerAuth, dataArrayResponse, dataResponse, successResponse, uuidParam } from '@/shared/lib/openapi';
+import { optionalAuth } from '@/shared/middleware/auth';
+import type { Variables } from '@/shared/types/context';
 import * as messageService from './service';
 
 const threads = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 threads.use('*', optionalAuth);
 
-const CREATE_THREAD_SCHEMA = z.object({
+const createThreadSchema = z.object({
   listing_id: z.string().uuid().optional(),
   booking_id: z.string().uuid().optional(),
   participant_ids: z.array(z.string().uuid()).min(2),
@@ -27,15 +27,15 @@ threads.post(
     security: bearerAuth,
     responses: { 201: dataResponse(MessageThreadSchema, 'Thread created successfully') },
   }),
-  validator('json', CREATE_THREAD_SCHEMA),
+  validator('json', createThreadSchema),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
-    const INPUT = c.req.valid('json');
-    const DATA = await messageService.createThread(SUPABASE_ADMIN, USER_ID, INPUT);
-    return c.json({ data: DATA }, 201);
+    const input = c.req.valid('json');
+    const data = await messageService.createThread(supabaseAdmin, userId, input);
+    return c.json({ data: data }, 201);
   },
 );
 
@@ -48,12 +48,12 @@ threads.get(
     responses: { 200: dataArrayResponse(MessageThreadSchema, 'List of threads') },
   }),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
-    const DATA = await messageService.getUserThreads(SUPABASE_ADMIN, USER_ID);
-    return c.json({ data: DATA });
+    const data = await messageService.getUserThreads(supabaseAdmin, userId);
+    return c.json({ data: data });
   },
 );
 
@@ -67,13 +67,13 @@ threads.get(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid('param');
-    const DATA = await messageService.getThread(SUPABASE_ADMIN, id, USER_ID);
-    return c.json({ data: DATA });
+    const data = await messageService.getThread(supabaseAdmin, id, userId);
+    return c.json({ data: data });
   },
 );
 
@@ -94,14 +94,14 @@ threads.get(
     }),
   ),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid('param');
     const { limit, before } = c.req.valid('query');
-    const DATA = await messageService.getMessages(SUPABASE_ADMIN, id, USER_ID, limit, before);
-    return c.json({ data: DATA });
+    const data = await messageService.getMessages(supabaseAdmin, id, userId, limit, before);
+    return c.json({ data: data });
   },
 );
 
@@ -116,14 +116,14 @@ threads.post(
   validator('param', uuidParam),
   validator('json', z.object({ content: z.string().min(1).max(5000) })),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid('param');
     const { content } = c.req.valid('json');
-    const DATA = await messageService.sendMessage(SUPABASE_ADMIN, id, USER_ID, content);
-    return c.json({ data: DATA }, 201);
+    const data = await messageService.sendMessage(supabaseAdmin, id, userId, content);
+    return c.json({ data: data }, 201);
   },
 );
 
@@ -137,12 +137,12 @@ threads.post(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid('param');
-    await messageService.markMessagesAsRead(SUPABASE_ADMIN, id, USER_ID);
+    await messageService.markMessagesAsRead(supabaseAdmin, id, userId);
     return c.json({ success: true });
   },
 );

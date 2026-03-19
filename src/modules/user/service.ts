@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { DatabaseError, NotFoundError } from '../../shared/lib/errors';
-import type { Profile } from '../../shared/types/database';
+import { DatabaseError, NotFoundError } from '@/shared/lib/errors';
+import type { Profile } from '@/shared/types/database';
 
 export const updateProfileSchema = z.object({
   display_name: z.string().min(1).max(100).optional(),
@@ -35,18 +35,18 @@ export function createUserRepository(supabaseAdmin: SupabaseClient): UserReposit
   }
 
   async function findPublicById(id: string): Promise<Partial<Profile>> {
-    const PROFILE = await findById(id);
+    const profile = await findById(id);
 
     return {
-      id: PROFILE.id,
-      display_name: PROFILE.display_name,
-      avatar_url: PROFILE.avatar_url,
-      bio: PROFILE.bio,
-      rating_avg: PROFILE.rating_avg,
-      rating_count: PROFILE.rating_count,
-      completed_rentals: PROFILE.completed_rentals,
-      identity_status: PROFILE.identity_status,
-      created_at: PROFILE.created_at,
+      id: profile.id,
+      display_name: profile.display_name,
+      avatar_url: profile.avatar_url,
+      bio: profile.bio,
+      rating_avg: profile.rating_avg,
+      rating_count: profile.rating_count,
+      completed_rentals: profile.completed_rentals,
+      identity_status: profile.identity_status,
+      created_at: profile.created_at,
     };
   }
 

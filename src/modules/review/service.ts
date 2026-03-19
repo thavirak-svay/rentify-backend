@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '../../shared/lib/errors';
-import type { Review } from '../../shared/types/database';
+import { BOOKING_STATUS } from '@/constants';
+import { DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '@/shared/lib/errors';
+import type { Review } from '@/shared/types/database';
 
 export interface CreateReviewInput {
   booking_id: string;
@@ -55,54 +56,54 @@ export function createReviewRepository(supabaseAdmin: SupabaseClient): ReviewRep
       throw new ValidationError('Rating must be between 1 and 5');
     }
 
-    const { data: BOOKING, error: BOOKING_ERROR } = await supabaseAdmin.from('bookings').select().eq('id', input.booking_id).single();
+    const { data: booking, error: bookingError } = await supabaseAdmin.from('bookings').select().eq('id', input.booking_id).single();
 
-    if (BOOKING_ERROR || !BOOKING) {
+    if (bookingError || !booking) {
       throw new NotFoundError('Booking not found');
     }
 
-    if (BOOKING.status !== 'completed') {
+    if (booking.status !== BOOKING_STATUS.COMPLETED) {
       throw new ValidationError('Can only review completed bookings');
     }
 
-    if (BOOKING.renter_id !== reviewerId && BOOKING.owner_id !== reviewerId) {
+    if (booking.renter_id !== reviewerId && booking.owner_id !== reviewerId) {
       throw new ForbiddenError('You can only review bookings you participated in');
     }
 
-    const TARGET_ID = BOOKING.renter_id === reviewerId ? BOOKING.owner_id : BOOKING.renter_id;
+    const targetId = booking.renter_id === reviewerId ? booking.owner_id : booking.renter_id;
 
     // Prevent self-review
-    if (TARGET_ID === reviewerId) {
+    if (targetId === reviewerId) {
       throw new ValidationError('You cannot review yourself');
     }
 
-    const EXISTING_REVIEW = await findByBookingAndReviewer(input.booking_id, reviewerId);
-    if (EXISTING_REVIEW) {
+    const existingReview = await findByBookingAndReviewer(input.booking_id, reviewerId);
+    if (existingReview) {
       throw new ValidationError('You have already reviewed this booking');
     }
 
-    const { data: REVIEW, error: REVIEW_ERROR } = await supabaseAdmin
+    const { data: review, error: reviewError } = await supabaseAdmin
       .from('reviews')
       .insert({
         booking_id: input.booking_id,
-        listing_id: BOOKING.listing_id,
+        listing_id: booking.listing_id,
         reviewer_id: reviewerId,
-        target_id: TARGET_ID,
+        target_id: targetId,
         rating: input.rating,
         comment: input.comment,
       })
       .select()
       .single();
 
-    if (REVIEW_ERROR) {
-      throw new DatabaseError(`Failed to create review: ${REVIEW_ERROR.message}`);
+    if (reviewError) {
+      throw new DatabaseError(`Failed to create review: ${reviewError.message}`);
     }
 
-    notifyReviewReceived(supabaseAdmin, TARGET_ID, reviewerId, REVIEW).catch((_err) => {
+    notifyReviewReceived(supabaseAdmin, targetId, reviewerId, review).catch((_err) => {
       // Notification failure is non-blocking
     });
 
-    return REVIEW;
+    return review;
   }
 
   return {
@@ -114,12 +115,12 @@ export function createReviewRepository(supabaseAdmin: SupabaseClient): ReviewRep
 }
 
 async function notifyReviewReceived(supabaseAdmin: SupabaseClient, targetId: string, reviewerId: string, review: Review): Promise<void> {
-  const { data: REVIEWER } = await supabaseAdmin.from('profiles').select('display_name').eq('id', reviewerId).single();
+  const { data: reviewer } = await supabaseAdmin.from('profiles').select('display_name').eq('id', reviewerId).single();
 
   await supabaseAdmin.from('notifications').insert({
     user_id: targetId,
     type: 'review.received',
-    title: `New review from ${REVIEWER?.display_name || 'Someone'}`,
+    title: `New review from ${reviewer?.display_name || 'Someone'}`,
     body: `Rating: ${'⭐'.repeat(review.rating)}`,
     data: { review_id: review.id, rating: review.rating },
   });

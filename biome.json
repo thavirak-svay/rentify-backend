@@ -107,13 +107,13 @@
                 "selector": {
                   "kind": "variable"
                 },
-                "formats": ["camelCase", "CONSTANT_CASE", "PascalCase"]
+                "formats": ["camelCase"]
               },
               {
                 "selector": {
                   "kind": "objectLiteralProperty"
                 },
-                "formats": ["camelCase", "CONSTANT_CASE", "snake_case"]
+                "formats": ["camelCase", "snake_case"]
               },
               {
                 "selector": {
@@ -177,11 +177,53 @@
       }
     },
     {
-      "includes": ["src/constants/booking.ts"],
+      "includes": ["src/constants/**/*.ts"],
       "linter": {
         "rules": {
           "style": {
-            "useNamingConvention": "off"
+            "useNamingConvention": {
+              "level": "error",
+              "options": {
+                "strictCase": true,
+                "conventions": [
+                  {
+                    "selector": {
+                      "kind": "variable"
+                    },
+                    "formats": ["CONSTANT_CASE"]
+                  },
+                  {
+                    "selector": {
+                      "kind": "objectLiteralProperty"
+                    },
+                    "formats": ["camelCase", "CONSTANT_CASE", "snake_case", "PascalCase"]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/config/env.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useNamingConvention": {
+              "level": "warn",
+              "options": {
+                "strictCase": true,
+                "conventions": [
+                  {
+                    "selector": {
+                      "kind": "objectLiteralProperty"
+                    },
+                    "formats": ["camelCase", "CONSTANT_CASE", "snake_case"]
+                  }
+                ]
+              }
+            }
           }
         }
       }

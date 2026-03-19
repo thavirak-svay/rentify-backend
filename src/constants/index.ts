@@ -1,11 +1,3 @@
-/**
- * Constants Index
- * Centralized export for all Rentify constants
- *
- * @example
- * import { MAX_RENTAL_DAYS, BOOKING_STATUS, PAYWAY_SUCCESS_CODE } from "@/constants"
- */
-
 export {
   AUTO_DECLINE_TIMEOUT_HOURS,
   BOOKING_STATUS,
@@ -20,9 +12,13 @@ export {
   MAX_RETRY_ATTEMPTS,
   RETRY_DELAY_MS,
 } from './compensation';
-
+export { LISTING_STATUS, type ListingStatus } from './listing';
 export {
   DEFAULT_CURRENCY,
+  DELIVERY_METHOD,
+  type DeliveryMethodType,
+  IDENTITY_STATUS,
+  type IdentityStatusType,
   MERCHANT_ENDPOINTS,
   PAYMENT_OPTIONS,
   PAYMENT_TYPES,
@@ -30,6 +26,12 @@ export {
   PAYWAY_SUCCESS_CODE,
   PAYWAY_TRANSACTION_STATUS,
   PREAUTH_LIFETIME_MINUTES,
+  PROTECTION_PLAN,
+  type ProtectionPlanType,
+  TRANSACTION_STATUS,
+  TRANSACTION_TYPE,
+  type TransactionStatus,
+  type TransactionType,
 } from './payment';
 export {
   HOURLY_THRESHOLD_HOURS,

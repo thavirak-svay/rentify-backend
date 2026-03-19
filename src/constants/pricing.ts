@@ -1,8 +1,3 @@
-/**
- * Pricing Constants
- * Centralized pricing configuration for Rentify marketplace
- */
-
 export const MAX_RENTAL_DAYS = 90;
 
 export const MS_PER_HOUR = 1000 * 60 * 60;

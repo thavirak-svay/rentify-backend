@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 import { z } from 'zod';
-import type { Env } from '../../config/env';
-import { CategorySchema } from '../../shared/lib/api-schemas';
-import { dataArrayResponse, dataResponse } from '../../shared/lib/openapi';
-import { optionalAuth } from '../../shared/middleware/auth';
-import type { Variables } from '../../shared/types/context';
+import type { Env } from '@/config/env';
+import { CategorySchema } from '@/shared/lib/api-schemas';
+import { dataArrayResponse, dataResponse } from '@/shared/lib/openapi';
+import { optionalAuth } from '@/shared/middleware/auth';
+import type { Variables } from '@/shared/types/context';
 import * as categoryService from './service';
 
 const categories = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -20,9 +20,9 @@ categories.get(
     responses: { 200: dataArrayResponse(CategorySchema, 'List of categories') },
   }),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const DATA = await categoryService.getCategories(SUPABASE_ADMIN);
-    return c.json({ data: DATA });
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const data = await categoryService.getCategories(supabaseAdmin);
+    return c.json({ data: data });
   },
 );
 
@@ -35,10 +35,10 @@ categories.get(
   }),
   validator('param', z.object({ slug: z.string() })),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
+    const supabaseAdmin = c.get('supabaseAdmin');
     const { slug } = c.req.valid('param');
-    const DATA = await categoryService.getCategory(SUPABASE_ADMIN, slug);
-    return c.json({ data: DATA });
+    const data = await categoryService.getCategory(supabaseAdmin, slug);
+    return c.json({ data: data });
   },
 );
 

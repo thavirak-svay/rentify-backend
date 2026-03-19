@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 import { z } from 'zod';
-import type { Env } from '../../config/env';
-import { NotificationSchema } from '../../shared/lib/api-schemas';
-import { AuthenticationError } from '../../shared/lib/errors';
-import { bearerAuth, dataArrayResponse, jsonContent, successResponse, uuidParam } from '../../shared/lib/openapi';
-import { optionalAuth } from '../../shared/middleware/auth';
-import type { Variables } from '../../shared/types/context';
+import type { Env } from '@/config/env';
+import { NotificationSchema } from '@/shared/lib/api-schemas';
+import { AuthenticationError } from '@/shared/lib/errors';
+import { bearerAuth, dataArrayResponse, jsonContent, successResponse, uuidParam } from '@/shared/lib/openapi';
+import { optionalAuth } from '@/shared/middleware/auth';
+import type { Variables } from '@/shared/types/context';
 import * as notificationService from './service';
 
 const notifications = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -29,13 +29,13 @@ notifications.get(
     }),
   ),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
     const { limit, unread } = c.req.valid('query');
-    const DATA = await notificationService.getUserNotifications(SUPABASE_ADMIN, USER_ID, limit, unread === 'true');
-    return c.json({ data: DATA });
+    const data = await notificationService.getUserNotifications(supabaseAdmin, userId, limit, unread === 'true');
+    return c.json({ data: data });
   },
 );
 
@@ -50,12 +50,12 @@ notifications.get(
     },
   }),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
-    const COUNT = await notificationService.getUnreadCount(SUPABASE_ADMIN, USER_ID);
-    return c.json({ data: { count: COUNT } });
+    const count = await notificationService.getUnreadCount(supabaseAdmin, userId);
+    return c.json({ data: { count: count } });
   },
 );
 
@@ -69,12 +69,12 @@ notifications.post(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid('param');
-    await notificationService.markAsRead(SUPABASE_ADMIN, id, USER_ID);
+    await notificationService.markAsRead(supabaseAdmin, id, userId);
     return c.json({ success: true });
   },
 );
@@ -88,11 +88,11 @@ notifications.post(
     responses: { 200: successResponse('All notifications marked as read') },
   }),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
-    await notificationService.markAllAsRead(SUPABASE_ADMIN, USER_ID);
+    await notificationService.markAllAsRead(supabaseAdmin, userId);
     return c.json({ success: true });
   },
 );

@@ -1,25 +1,30 @@
-/**
- * Booking Service
- * Business logic for booking management
- */
-
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Env } from '../../config/env';
-import { ConflictError, DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '../../shared/lib/errors';
-import { log } from '../../shared/middleware/logger';
-import type { Booking, Profile } from '../../shared/types/database';
-import { queueCompensation } from '../compensation';
-import { cancelPreAuth, captureWithPayout, createPreAuth, type PayWayBooking, refundPayment } from '../mock';
-import { calculatePricing, type PricingInput } from '../pricing';
+import type { Env } from '@/config/env';
+import {
+  BOOKING_STATUS,
+  DELIVERY_METHOD,
+  type DeliveryMethodType,
+  LISTING_STATUS,
+  PROTECTION_PLAN,
+  type ProtectionPlanType,
+  TRANSACTION_STATUS,
+  TRANSACTION_TYPE,
+} from '@/constants';
+import { queueCompensation } from '@/modules/compensation';
+import { cancelPreAuth, captureWithPayout, createPreAuth, type PayWayBooking, refundPayment } from '@/modules/mock';
+import { calculatePricing, type PricingInput } from '@/modules/pricing';
+import { ConflictError, DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '@/shared/lib/errors';
+import { log } from '@/shared/middleware/logger';
+import type { Booking, Profile } from '@/shared/types/database';
 import { validateTransition } from './state-machine';
 
 export interface CreateBookingInput {
   listing_id: string;
   start_time: string;
   end_time: string;
-  delivery_method?: 'pickup' | 'delivery';
+  delivery_method?: DeliveryMethodType;
   delivery_address?: string;
-  protection_plan?: 'none' | 'basic' | 'premium';
+  protection_plan?: ProtectionPlanType;
 }
 
 export async function createBooking(
@@ -28,241 +33,237 @@ export async function createBooking(
   renterId: string,
   input: CreateBookingInput,
 ): Promise<{ booking: Booking; checkout_url: string }> {
-  const { data: LISTING, error: LISTING_ERROR } = await supabaseAdmin
+  const { data: listing, error: listingError } = await supabaseAdmin
     .from('listings')
     .select('*, profiles!listings_owner_id_fkey(*)')
     .eq('id', input.listing_id)
-    .eq('status', 'active')
+    .eq('status', LISTING_STATUS.ACTIVE)
     .is('deleted_at', null)
     .single();
 
-  if (LISTING_ERROR || !LISTING) {
+  if (listingError || !listing) {
     throw new NotFoundError('Listing not found or not available');
   }
 
-  const OWNER = LISTING.profiles as Profile | null;
-  if (!OWNER) {
+  const owner = listing.profiles as Profile | null;
+  if (!owner) {
     throw new NotFoundError('Listing owner not found');
   }
 
-  const { data: CONFLICTS } = await supabaseAdmin
+  const { data: conflicts } = await supabaseAdmin
     .from('bookings')
     .select('id')
     .eq('listing_id', input.listing_id)
-    .in('status', ['requested', 'approved', 'active'])
+    .in('status', [BOOKING_STATUS.REQUESTED, BOOKING_STATUS.APPROVED, BOOKING_STATUS.ACTIVE])
     .or(`start_time.lt.${input.end_time},end_time.gt.${input.start_time}`);
 
-  if (CONFLICTS && CONFLICTS.length > 0) {
+  if (conflicts && conflicts.length > 0) {
     throw new ConflictError('Listing is not available for the selected dates');
   }
 
-  const PRICING_INPUT: PricingInput = {
+  const pricingInput: PricingInput = {
     startTime: new Date(input.start_time),
     endTime: new Date(input.end_time),
-    priceHourly: LISTING.price_hourly,
-    priceDaily: LISTING.price_daily,
-    priceWeekly: LISTING.price_weekly,
-    depositAmount: LISTING.deposit_amount,
-    deliveryMethod: input.delivery_method || 'pickup',
-    deliveryFee: LISTING.delivery_available && input.delivery_method === 'delivery' ? LISTING.delivery_fee : 0,
-    protectionPlan: input.protection_plan || 'none',
+    priceHourly: listing.price_hourly,
+    priceDaily: listing.price_daily,
+    priceWeekly: listing.price_weekly,
+    depositAmount: listing.deposit_amount,
+    deliveryMethod: input.delivery_method || DELIVERY_METHOD.PICKUP,
+    deliveryFee: listing.delivery_available && input.delivery_method === DELIVERY_METHOD.DELIVERY ? listing.delivery_fee : 0,
+    protectionPlan: input.protection_plan || PROTECTION_PLAN.NONE,
     serviceFeeRate: 0.12,
   };
 
-  const PRICING = calculatePricing(PRICING_INPUT);
+  const pricing = calculatePricing(pricingInput);
 
-  const { data: BOOKING, error: BOOKING_ERROR } = await supabaseAdmin
+  const { data: booking, error: bookingError } = await supabaseAdmin
     .from('bookings')
     .insert({
       listing_id: input.listing_id,
       renter_id: renterId,
-      owner_id: LISTING.owner_id,
+      owner_id: listing.owner_id,
       start_time: input.start_time,
       end_time: input.end_time,
-      status: 'requested',
-      subtotal: PRICING.subtotal,
-      service_fee: PRICING.service_fee,
-      delivery_fee: PRICING.delivery_fee,
-      protection_fee: PRICING.protection_fee,
-      deposit_amount: PRICING.deposit_amount,
-      total_amount: PRICING.total_renter_pays,
-      owner_payout: PRICING.owner_payout,
-      currency: LISTING.currency,
-      delivery_method: input.delivery_method || 'pickup',
+      status: BOOKING_STATUS.REQUESTED,
+      subtotal: pricing.subtotal,
+      service_fee: pricing.service_fee,
+      delivery_fee: pricing.delivery_fee,
+      protection_fee: pricing.protection_fee,
+      deposit_amount: pricing.deposit_amount,
+      total_amount: pricing.total_renter_pays,
+      owner_payout: pricing.owner_payout,
+      currency: listing.currency,
+      delivery_method: input.delivery_method || DELIVERY_METHOD.PICKUP,
       delivery_address: input.delivery_address,
-      protection_plan: input.protection_plan || 'none',
+      protection_plan: input.protection_plan || PROTECTION_PLAN.NONE,
       payment_authorized: false,
     })
     .select()
     .single();
 
-  if (BOOKING_ERROR || !BOOKING) {
-    throw new DatabaseError(`Failed to create booking: ${BOOKING_ERROR?.message}`);
+  if (bookingError || !booking) {
+    throw new DatabaseError(`Failed to create booking: ${bookingError?.message}`);
   }
 
-  const { data: RENTER, error: RENTER_ERROR } = await supabaseAdmin
-    .from('profiles')
-    .select('id, display_name')
-    .eq('id', renterId)
-    .single();
+  const { data: renter, error: renterError } = await supabaseAdmin.from('profiles').select('id, display_name').eq('id', renterId).single();
 
-  if (RENTER_ERROR || !RENTER) {
+  if (renterError || !renter) {
     // Cleanup the booking if renter profile doesn't exist
-    await supabaseAdmin.from('bookings').delete().eq('id', BOOKING.id);
+    await supabaseAdmin.from('bookings').delete().eq('id', booking.id);
     throw new NotFoundError('Renter profile not found');
   }
 
-  const PAYWAY_BOOKING: PayWayBooking = {
-    id: BOOKING.id,
-    listingTitle: LISTING.title,
-    renterFirstName: RENTER.display_name?.split(' ')[0] || 'User',
-    renterLastName: RENTER.display_name?.split(' ').slice(1).join(' ') || 'User',
+  const paywayBooking: PayWayBooking = {
+    id: booking.id,
+    listingTitle: listing.title,
+    renterFirstName: renter.display_name?.split(' ')[0] || 'User',
+    renterLastName: renter.display_name?.split(' ').slice(1).join(' ') || 'User',
     renterEmail: 'test@example.com',
     renterPhone: '+85512345678',
-    ownerId: LISTING.owner_id,
-    ownerPaywayBeneficiaryId: OWNER.payway_beneficiary_id || '',
+    ownerId: listing.owner_id,
+    ownerPaywayBeneficiaryId: owner.payway_beneficiary_id || '',
   };
 
-  const PAYMENT_RESULT = await createPreAuth(env, PAYWAY_BOOKING, PRICING);
+  const paymentResult = await createPreAuth(env, paywayBooking, pricing);
 
   await supabaseAdmin.from('transactions').insert({
-    booking_id: BOOKING.id,
-    type: 'pre_auth',
-    status: 'pending',
-    amount: PRICING.total_renter_pays,
-    currency: LISTING.currency,
-    payway_tran_id: PAYMENT_RESULT.payway_tran_id,
+    booking_id: booking.id,
+    type: TRANSACTION_TYPE.PRE_AUTH,
+    status: TRANSACTION_STATUS.PENDING,
+    amount: pricing.total_renter_pays,
+    currency: listing.currency,
+    payway_tran_id: paymentResult.payway_tran_id,
   });
 
   return {
-    booking: BOOKING,
-    checkout_url: PAYMENT_RESULT.checkout_url,
+    booking: booking,
+    checkout_url: paymentResult.checkout_url,
   };
 }
 
 export async function approveBooking(supabaseAdmin: SupabaseClient, env: Env, bookingId: string, userId: string): Promise<Booking> {
-  const { data: BOOKING, error } = await supabaseAdmin.from('bookings').select('*, transactions(*)').eq('id', bookingId).single();
+  const { data: booking, error } = await supabaseAdmin.from('bookings').select('*, transactions(*)').eq('id', bookingId).single();
 
-  if (error || !BOOKING) {
+  if (error || !booking) {
     throw new NotFoundError('Booking not found');
   }
 
-  validateTransition(BOOKING.status, 'approved', userId, BOOKING);
+  validateTransition(booking.status, BOOKING_STATUS.APPROVED, userId, booking);
 
-  const TRANSACTION = BOOKING.transactions?.[0];
-  if (!TRANSACTION?.payway_tran_id) {
+  const transaction = booking.transactions?.[0];
+  if (!transaction?.payway_tran_id) {
     throw new ValidationError('No payment transaction found for this booking');
   }
 
   try {
-    await captureWithPayout(env, TRANSACTION.payway_tran_id);
+    await captureWithPayout(env, transaction.payway_tran_id);
   } catch (err) {
-    log.error({ err, booking_id: bookingId, tran_id: TRANSACTION.payway_tran_id }, 'Payment capture failed during approval');
+    log.error({ err, booking_id: bookingId, tran_id: transaction.payway_tran_id }, 'Payment capture failed during approval');
     throw err;
   }
 
-  const { data: UPDATED, error: UPDATE_ERROR } = await supabaseAdmin
+  const { data: updated, error: updateError } = await supabaseAdmin
     .from('bookings')
     .update({
-      status: 'approved',
+      status: BOOKING_STATUS.APPROVED,
       approved_at: new Date().toISOString(),
     })
     .eq('id', bookingId)
     .select()
     .single();
 
-  if (UPDATE_ERROR) {
-    log.warn({ booking_id: bookingId, tran_id: TRANSACTION.payway_tran_id }, 'DB update failed after payment capture - queuing compensation');
-    await queueCompensation(supabaseAdmin, 'cancel_preauth', { payway_tran_id: TRANSACTION.payway_tran_id }, bookingId, TRANSACTION.id);
-    throw new DatabaseError(`Failed to approve booking: ${UPDATE_ERROR.message}`);
+  if (updateError) {
+    log.warn({ booking_id: bookingId, tran_id: transaction.payway_tran_id }, 'DB update failed after payment capture - queuing compensation');
+    await queueCompensation(supabaseAdmin, 'cancel_preauth', { payway_tran_id: transaction.payway_tran_id }, bookingId, transaction.id);
+    throw new DatabaseError(`Failed to approve booking: ${updateError.message}`);
   }
 
   const { error: txError } = await supabaseAdmin
     .from('transactions')
-    .update({ status: 'completed', processed_at: new Date().toISOString() })
-    .eq('id', TRANSACTION.id);
+    .update({ status: TRANSACTION_STATUS.COMPLETED, processed_at: new Date().toISOString() })
+    .eq('id', transaction.id);
   if (txError) {
-    log.error({ txError, bookingId, tran_id: TRANSACTION.payway_tran_id }, 'Transaction status update failed after approval');
+    log.error({ txError, bookingId, tran_id: transaction.payway_tran_id }, 'Transaction status update failed after approval');
   }
 
-  return UPDATED;
+  return updated;
 }
 
 export async function declineBooking(supabaseAdmin: SupabaseClient, env: Env, bookingId: string, userId: string): Promise<Booking> {
-  const { data: BOOKING, error } = await supabaseAdmin.from('bookings').select('*, transactions(*)').eq('id', bookingId).single();
+  const { data: booking, error } = await supabaseAdmin.from('bookings').select('*, transactions(*)').eq('id', bookingId).single();
 
-  if (error || !BOOKING) {
+  if (error || !booking) {
     throw new NotFoundError('Booking not found');
   }
 
-  validateTransition(BOOKING.status, 'declined', userId, BOOKING);
+  validateTransition(booking.status, BOOKING_STATUS.DECLINED, userId, booking);
 
-  const TRANSACTION = BOOKING.transactions?.[0];
-  if (TRANSACTION?.payway_tran_id) {
+  const transaction = booking.transactions?.[0];
+  if (transaction?.payway_tran_id) {
     try {
-      await cancelPreAuth(env, TRANSACTION.payway_tran_id);
+      await cancelPreAuth(env, transaction.payway_tran_id);
     } catch (err) {
-      log.error({ err, booking_id: bookingId, tran_id: TRANSACTION.payway_tran_id }, 'Pre-auth cancellation failed during decline');
+      log.error({ err, booking_id: bookingId, tran_id: transaction.payway_tran_id }, 'Pre-auth cancellation failed during decline');
       throw err;
     }
   }
 
-  const { data: UPDATED, error: UPDATE_ERROR } = await supabaseAdmin
+  const { data: updated, error: updateError } = await supabaseAdmin
     .from('bookings')
     .update({
-      status: 'declined',
+      status: BOOKING_STATUS.DECLINED,
       declined_at: new Date().toISOString(),
     })
     .eq('id', bookingId)
     .select()
     .single();
 
-  if (UPDATE_ERROR) {
+  if (updateError) {
     log.error(
-      { err: UPDATE_ERROR, booking_id: bookingId, tran_id: TRANSACTION?.payway_tran_id },
+      { err: updateError, booking_id: bookingId, tran_id: transaction?.payway_tran_id },
       'DB update failed after pre-auth cancellation - pre-auth already released',
     );
-    throw new DatabaseError(`Failed to decline booking: ${UPDATE_ERROR.message}`);
+    throw new DatabaseError(`Failed to decline booking: ${updateError.message}`);
   }
 
-  if (TRANSACTION?.id) {
+  if (transaction?.id) {
     const { error: txError } = await supabaseAdmin
       .from('transactions')
-      .update({ status: 'cancelled', processed_at: new Date().toISOString() })
-      .eq('id', TRANSACTION.id);
+      .update({ status: TRANSACTION_STATUS.CANCELLED, processed_at: new Date().toISOString() })
+      .eq('id', transaction.id);
     if (txError) {
-      log.error({ txError, bookingId, tran_id: TRANSACTION.payway_tran_id }, 'Transaction status update failed after decline');
+      log.error({ txError, bookingId, tran_id: transaction.payway_tran_id }, 'Transaction status update failed after decline');
     }
   }
 
-  return UPDATED;
+  return updated;
 }
 
 export async function cancelBooking(supabaseAdmin: SupabaseClient, env: Env, bookingId: string, userId: string, reason?: string): Promise<Booking> {
-  const { data: BOOKING, error } = await supabaseAdmin.from('bookings').select('*, transactions(*)').eq('id', bookingId).single();
+  const { data: booking, error } = await supabaseAdmin.from('bookings').select('*, transactions(*)').eq('id', bookingId).single();
 
-  if (error || !BOOKING) {
+  if (error || !booking) {
     throw new NotFoundError('Booking not found');
   }
 
-  validateTransition(BOOKING.status, 'cancelled', userId, BOOKING);
+  validateTransition(booking.status, BOOKING_STATUS.CANCELLED, userId, booking);
 
-  const TRANSACTION = BOOKING.transactions?.[0];
+  const transaction = booking.transactions?.[0];
 
-  if (TRANSACTION?.payway_tran_id) {
+  if (transaction?.payway_tran_id) {
     try {
-      if (BOOKING.status === 'requested' || BOOKING.status === 'approved') {
-        await cancelPreAuth(env, TRANSACTION.payway_tran_id);
-      } else if (BOOKING.status === 'active') {
-        await refundPayment(env, TRANSACTION.payway_tran_id);
+      if (booking.status === BOOKING_STATUS.REQUESTED || booking.status === BOOKING_STATUS.APPROVED) {
+        cancelPreAuth(env, transaction.payway_tran_id);
+      } else if (booking.status === BOOKING_STATUS.ACTIVE) {
+        refundPayment(env, transaction.payway_tran_id);
       }
     } catch (err) {
       log.error(
         {
           err,
           booking_id: bookingId,
-          tran_id: TRANSACTION.payway_tran_id,
-          booking_status: BOOKING.status,
+          tran_id: transaction.payway_tran_id,
+          booking_status: booking.status,
         },
         'Payment operation failed during cancellation',
       );
@@ -270,10 +271,10 @@ export async function cancelBooking(supabaseAdmin: SupabaseClient, env: Env, boo
     }
   }
 
-  const { data: UPDATED, error: UPDATE_ERROR } = await supabaseAdmin
+  const { data: updated, error: updateError } = await supabaseAdmin
     .from('bookings')
     .update({
-      status: 'cancelled',
+      status: BOOKING_STATUS.CANCELLED,
       cancelled_at: new Date().toISOString(),
       cancelled_by: userId,
       cancellation_reason: reason,
@@ -282,86 +283,86 @@ export async function cancelBooking(supabaseAdmin: SupabaseClient, env: Env, boo
     .select()
     .single();
 
-  if (UPDATE_ERROR) {
-    if (BOOKING.status === 'active' && TRANSACTION?.payway_tran_id) {
+  if (updateError) {
+    if (booking.status === BOOKING_STATUS.ACTIVE && transaction?.payway_tran_id) {
       log.error(
-        { err: UPDATE_ERROR, booking_id: bookingId, tran_id: TRANSACTION.payway_tran_id },
+        { err: updateError, booking_id: bookingId, tran_id: transaction.payway_tran_id },
         'CRITICAL: DB update failed after refund - queuing booking cancellation',
       );
-      await queueCompensation(supabaseAdmin, 'cancel_booking', { booking_id: bookingId }, bookingId, TRANSACTION.id);
-    } else if (TRANSACTION?.payway_tran_id) {
+      await queueCompensation(supabaseAdmin, 'cancel_booking', { booking_id: bookingId }, bookingId, transaction.id);
+    } else if (transaction?.payway_tran_id) {
       log.warn(
-        { booking_id: bookingId, tran_id: TRANSACTION.payway_tran_id },
+        { booking_id: bookingId, tran_id: transaction.payway_tran_id },
         'DB update failed after pre-auth cancellation - pre-auth already released',
       );
     }
-    throw new DatabaseError(`Failed to cancel booking: ${UPDATE_ERROR.message}`);
+    throw new DatabaseError(`Failed to cancel booking: ${updateError.message}`);
   }
 
-  if (TRANSACTION?.id) {
-    const TX_STATUS = BOOKING.status === 'active' ? 'refunded' : 'cancelled';
+  if (transaction?.id) {
+    const txStatus = booking.status === BOOKING_STATUS.ACTIVE ? TRANSACTION_STATUS.REFUNDED : TRANSACTION_STATUS.CANCELLED;
     const { error: txError } = await supabaseAdmin
       .from('transactions')
-      .update({ status: TX_STATUS, processed_at: new Date().toISOString() })
-      .eq('id', TRANSACTION.id);
+      .update({ status: txStatus, processed_at: new Date().toISOString() })
+      .eq('id', transaction.id);
     if (txError) {
-      log.error({ txError, bookingId, tran_id: TRANSACTION.payway_tran_id }, 'Transaction status update failed after cancellation');
+      log.error({ txError, bookingId, tran_id: transaction.payway_tran_id }, 'Transaction status update failed after cancellation');
     }
   }
 
-  return UPDATED;
+  return updated;
 }
 
 export async function completeBooking(supabaseAdmin: SupabaseClient, bookingId: string): Promise<Booking> {
-  const { data: BOOKING, error } = await supabaseAdmin.from('bookings').select().eq('id', bookingId).single();
+  const { data: booking, error } = await supabaseAdmin.from('bookings').select().eq('id', bookingId).single();
 
-  if (error || !BOOKING) {
+  if (error || !booking) {
     throw new NotFoundError('Booking not found');
   }
 
-  validateTransition(BOOKING.status, 'completed', 'system', BOOKING);
+  validateTransition(booking.status, BOOKING_STATUS.COMPLETED, 'system', booking);
 
-  const { data: UPDATED, error: UPDATE_ERROR } = await supabaseAdmin
+  const { data: updated, error: updateError } = await supabaseAdmin
     .from('bookings')
     .update({
-      status: 'completed',
+      status: BOOKING_STATUS.COMPLETED,
       completed_at: new Date().toISOString(),
     })
     .eq('id', bookingId)
     .select()
     .single();
 
-  if (UPDATE_ERROR) {
-    throw new DatabaseError(`Failed to complete booking: ${UPDATE_ERROR.message}`);
+  if (updateError) {
+    throw new DatabaseError(`Failed to complete booking: ${updateError.message}`);
   }
 
-  return UPDATED;
+  return updated;
 }
 
 export async function getBooking(supabaseAdmin: SupabaseClient, bookingId: string, userId: string): Promise<Booking> {
-  const { data: BOOKING, error } = await supabaseAdmin.from('bookings').select().eq('id', bookingId).single();
+  const { data: booking, error } = await supabaseAdmin.from('bookings').select().eq('id', bookingId).single();
 
-  if (error || !BOOKING) {
+  if (error || !booking) {
     throw new NotFoundError('Booking not found');
   }
 
-  if (BOOKING.renter_id !== userId && BOOKING.owner_id !== userId) {
+  if (booking.renter_id !== userId && booking.owner_id !== userId) {
     throw new ForbiddenError('You can only view your own bookings');
   }
 
-  return BOOKING;
+  return booking;
 }
 
 export async function getUserBookings(supabaseAdmin: SupabaseClient, userId: string, role?: 'renter' | 'owner'): Promise<Booking[]> {
-  let QUERY = supabaseAdmin.from('bookings').select().or(`renter_id.eq.${userId},owner_id.eq.${userId}`).order('created_at', { ascending: false });
+  let query = supabaseAdmin.from('bookings').select().or(`renter_id.eq.${userId},owner_id.eq.${userId}`).order('created_at', { ascending: false });
 
   if (role === 'renter') {
-    QUERY = QUERY.eq('renter_id', userId);
+    query = query.eq('renter_id', userId);
   } else if (role === 'owner') {
-    QUERY = QUERY.eq('owner_id', userId);
+    query = query.eq('owner_id', userId);
   }
 
-  const { data, error } = await QUERY;
+  const { data, error } = await query;
 
   if (error) {
     throw new DatabaseError(`Failed to get bookings: ${error.message}`);
@@ -371,27 +372,27 @@ export async function getUserBookings(supabaseAdmin: SupabaseClient, userId: str
 }
 
 export async function activateBooking(supabaseAdmin: SupabaseClient, bookingId: string): Promise<Booking> {
-  const { data: BOOKING, error } = await supabaseAdmin.from('bookings').select().eq('id', bookingId).single();
+  const { data: booking, error } = await supabaseAdmin.from('bookings').select().eq('id', bookingId).single();
 
-  if (error || !BOOKING) {
+  if (error || !booking) {
     throw new NotFoundError('Booking not found');
   }
 
-  validateTransition(BOOKING.status, 'active', 'system', BOOKING);
+  validateTransition(booking.status, BOOKING_STATUS.ACTIVE, 'system', booking);
 
-  const { data: UPDATED, error: UPDATE_ERROR } = await supabaseAdmin
+  const { data: updated, error: updateError } = await supabaseAdmin
     .from('bookings')
     .update({
-      status: 'active',
+      status: BOOKING_STATUS.ACTIVE,
       started_at: new Date().toISOString(),
     })
     .eq('id', bookingId)
     .select()
     .single();
 
-  if (UPDATE_ERROR) {
-    throw new DatabaseError(`Failed to activate booking: ${UPDATE_ERROR.message}`);
+  if (updateError) {
+    throw new DatabaseError(`Failed to activate booking: ${updateError.message}`);
   }
 
-  return UPDATED;
+  return updated;
 }

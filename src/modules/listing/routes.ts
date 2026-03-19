@@ -2,19 +2,20 @@ import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 
 import { z } from 'zod';
-import type { Env } from '../../config/env';
-import { ListingSchema, ListingWithMediaSchema } from '../../shared/lib/api-schemas';
-import { AuthenticationError } from '../../shared/lib/errors';
-import { bearerAuth, dataArrayResponse, dataResponse, successResponse, uuidParam } from '../../shared/lib/openapi';
-import { optionalAuth } from '../../shared/middleware/auth';
-import type { Variables } from '../../shared/types/context';
+import type { Env } from '@/config/env';
+import { LISTING_STATUS } from '@/constants';
+import { ListingSchema, ListingWithMediaSchema } from '@/shared/lib/api-schemas';
+import { AuthenticationError } from '@/shared/lib/errors';
+import { bearerAuth, dataArrayResponse, dataResponse, successResponse, uuidParam } from '@/shared/lib/openapi';
+import { optionalAuth } from '@/shared/middleware/auth';
+import type { Variables } from '@/shared/types/context';
 import * as listingService from './service';
 
 const listings = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 listings.use('*', optionalAuth);
 
-import { createListingSchema } from '../../shared/lib/validation';
+import { createListingSchema } from '@/shared/lib/validation';
 
 listings.post(
   '/',
@@ -26,13 +27,13 @@ listings.post(
   }),
   validator('json', createListingSchema),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
-    const INPUT = c.req.valid('json');
-    const DATA = await listingService.createListing(SUPABASE_ADMIN, USER_ID, INPUT);
-    return c.json({ data: DATA }, 201);
+    const input = c.req.valid('json');
+    const data = await listingService.createListing(supabaseAdmin, userId, input);
+    return c.json({ data: data }, 201);
   },
 );
 
@@ -45,9 +46,9 @@ listings.get(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
+    const supabaseAdmin = c.get('supabaseAdmin');
     const { id } = c.req.valid('param');
-    const { listing, media } = await listingService.getListingWithMedia(SUPABASE_ADMIN, id);
+    const { listing, media } = await listingService.getListingWithMedia(supabaseAdmin, id);
     return c.json({ data: { ...listing, media } });
   },
 );
@@ -63,14 +64,14 @@ listings.patch(
   validator('param', uuidParam),
   validator('json', createListingSchema.partial()),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid('param');
-    const INPUT = c.req.valid('json');
-    const DATA = await listingService.updateListing(SUPABASE_ADMIN, id, USER_ID, INPUT);
-    return c.json({ data: DATA });
+    const input = c.req.valid('json');
+    const data = await listingService.updateListing(supabaseAdmin, id, userId, input);
+    return c.json({ data: data });
   },
 );
 
@@ -84,12 +85,12 @@ listings.delete(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid('param');
-    await listingService.deleteListing(SUPABASE_ADMIN, id, USER_ID);
+    await listingService.deleteListing(supabaseAdmin, id, userId);
     return c.json({ success: true });
   },
 );
@@ -104,13 +105,13 @@ listings.post(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
     const { id } = c.req.valid('param');
-    const DATA = await listingService.publishListing(SUPABASE_ADMIN, id, USER_ID);
-    return c.json({ data: DATA });
+    const data = await listingService.publishListing(supabaseAdmin, id, userId);
+    return c.json({ data: data });
   },
 );
 
@@ -125,17 +126,17 @@ listings.get(
   validator(
     'query',
     z.object({
-      status: z.enum(['draft', 'active', 'paused', 'archived']).optional(),
+      status: z.enum(Object.values(LISTING_STATUS) as [string, ...string[]]).optional(),
     }),
   ),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
     const { status } = c.req.valid('query');
-    const DATA = await listingService.getUserListings(SUPABASE_ADMIN, USER_ID, status);
-    return c.json({ data: DATA });
+    const data = await listingService.getUserListings(supabaseAdmin, userId, status);
+    return c.json({ data: data });
   },
 );
 

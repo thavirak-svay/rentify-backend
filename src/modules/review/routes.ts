@@ -1,19 +1,19 @@
 import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 import { z } from 'zod';
-import type { Env } from '../../config/env';
-import { ReviewSchema } from '../../shared/lib/api-schemas';
-import { AuthenticationError } from '../../shared/lib/errors';
-import { bearerAuth, dataArrayResponse, dataResponse } from '../../shared/lib/openapi';
-import { optionalAuth } from '../../shared/middleware/auth';
-import type { Variables } from '../../shared/types/context';
+import type { Env } from '@/config/env';
+import { ReviewSchema } from '@/shared/lib/api-schemas';
+import { AuthenticationError } from '@/shared/lib/errors';
+import { bearerAuth, dataArrayResponse, dataResponse } from '@/shared/lib/openapi';
+import { optionalAuth } from '@/shared/middleware/auth';
+import type { Variables } from '@/shared/types/context';
 import * as reviewService from './service';
 
 const reviews = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 reviews.use('*', optionalAuth);
 
-const CREATE_REVIEW_SCHEMA = z.object({
+const createReviewSchema = z.object({
   booking_id: z.string().uuid(),
   rating: z.number().int().min(1).max(5),
   comment: z.string().max(1000).optional(),
@@ -27,15 +27,15 @@ reviews.post(
     security: bearerAuth,
     responses: { 201: dataResponse(ReviewSchema, 'Review created successfully') },
   }),
-  validator('json', CREATE_REVIEW_SCHEMA),
+  validator('json', createReviewSchema),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
-    const INPUT = c.req.valid('json');
-    const DATA = await reviewService.createReview(SUPABASE_ADMIN, USER_ID, INPUT);
-    return c.json({ data: DATA }, 201);
+    const input = c.req.valid('json');
+    const data = await reviewService.createReview(supabaseAdmin, userId, input);
+    return c.json({ data: data }, 201);
   },
 );
 
@@ -48,10 +48,10 @@ reviews.get(
   }),
   validator('param', z.object({ listingId: z.string().uuid() })),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
+    const supabaseAdmin = c.get('supabaseAdmin');
     const { listingId } = c.req.valid('param');
-    const DATA = await reviewService.getListingReviews(SUPABASE_ADMIN, listingId);
-    return c.json({ data: DATA });
+    const data = await reviewService.getListingReviews(supabaseAdmin, listingId);
+    return c.json({ data: data });
   },
 );
 
@@ -64,10 +64,10 @@ reviews.get(
   }),
   validator('param', z.object({ userId: z.string().uuid() })),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
+    const supabaseAdmin = c.get('supabaseAdmin');
     const { userId } = c.req.valid('param');
-    const DATA = await reviewService.getUserReviews(SUPABASE_ADMIN, userId);
-    return c.json({ data: DATA });
+    const data = await reviewService.getUserReviews(supabaseAdmin, userId);
+    return c.json({ data: data });
   },
 );
 

@@ -1,8 +1,3 @@
-/**
- * Compensation Constants
- * Centralized compensation queue configuration
- */
-
 export const COMPENSATION_TYPES = {
   CANCEL_PREAUTH: 'cancel_preauth',
   REFUND: 'refund',

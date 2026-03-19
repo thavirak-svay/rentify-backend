@@ -4,10 +4,11 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Env } from '../../config/env';
-import { DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '../../shared/lib/errors';
-import { log } from '../../shared/middleware/logger';
-import { checkTransaction, refundPayment as refundPayWayPayment, verifyCallbackHash } from '../mock';
+import type { Env } from '@/config/env';
+import { TRANSACTION_STATUS } from '@/constants';
+import { checkTransaction, refundPayment as refundPayWayPayment, verifyCallbackHash } from '@/modules/mock';
+import { DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '@/shared/lib/errors';
+import { log } from '@/shared/middleware/logger';
 
 export interface PayWayCallbackPayload {
   tran_id: string;
@@ -32,66 +33,69 @@ export async function handlePaywayCallback(supabaseAdmin: SupabaseClient, env: E
 
   const { tran_id, status } = payload;
 
-  const NEW_STATUS = status === 'APPROVED' ? 'authorized' : 'failed';
+  const newStatus = status === 'APPROVED' ? TRANSACTION_STATUS.AUTHORIZED : TRANSACTION_STATUS.FAILED;
 
-  const { data: UPDATED_TX, error: UPDATE_ERROR } = await supabaseAdmin
+  const { data: updatedTx, error: updateError } = await supabaseAdmin
     .from('transactions')
     .update({
-      status: NEW_STATUS,
+      status: newStatus,
       metadata: { payway_callback: payload },
     })
     .eq('payway_tran_id', tran_id)
-    .eq('status', 'pending')
+    .eq('status', TRANSACTION_STATUS.PENDING)
     .select('id, booking_id, status');
 
-  if (UPDATE_ERROR) {
-    log.error({ err: UPDATE_ERROR, tran_id }, 'Failed to update transaction');
-    throw new DatabaseError('Failed to process payment callback', UPDATE_ERROR);
+  if (updateError) {
+    log.error({ err: updateError, tran_id }, 'Failed to update transaction');
+    throw new DatabaseError('Failed to process payment callback', updateError);
   }
 
-  if (!UPDATED_TX || UPDATED_TX.length === 0) {
+  if (!updatedTx || updatedTx.length === 0) {
     log.info({ tran_id, status }, 'PayWay callback already processed, skipping');
     return;
   }
 
-  const EXISTING_TX = UPDATED_TX[0];
-  if (!EXISTING_TX) {
+  const existingTx = updatedTx[0];
+  if (!existingTx) {
     return;
   }
 
-  log.info({ tran_id, status, booking_id: EXISTING_TX.booking_id }, 'PayWay callback processed');
+  log.info({ tran_id, status, booking_id: existingTx.booking_id }, 'PayWay callback processed');
 
   if (status === 'APPROVED') {
-    await supabaseAdmin.from('bookings').update({ payment_authorized: true }).eq('id', EXISTING_TX.booking_id);
+    await supabaseAdmin.from('bookings').update({ payment_authorized: true }).eq('id', existingTx.booking_id);
   }
 }
 
 export async function getTransactionStatus(supabaseAdmin: SupabaseClient, env: Env, transactionId: string): Promise<TransactionStatusResult> {
-  const { data: TRANSACTION, error } = await supabaseAdmin.from('transactions').select('payway_tran_id').eq('id', transactionId).single();
+  const { data: transaction, error } = await supabaseAdmin.from('transactions').select('payway_tran_id').eq('id', transactionId).single();
 
-  if (error || !TRANSACTION?.payway_tran_id) {
+  if (error || !transaction?.payway_tran_id) {
     throw new NotFoundError('Transaction not found');
   }
 
-  return checkTransaction(env, TRANSACTION.payway_tran_id);
+  return checkTransaction(env, transaction.payway_tran_id);
 }
 
 export async function refundTransaction(supabaseAdmin: SupabaseClient, env: Env, transactionId: string): Promise<RefundResult> {
-  const { data: TRANSACTION, error } = await supabaseAdmin.from('transactions').select('payway_tran_id, status').eq('id', transactionId).single();
+  const { data: transaction, error } = await supabaseAdmin.from('transactions').select('payway_tran_id, status').eq('id', transactionId).single();
 
-  if (error || !TRANSACTION) {
+  if (error || !transaction) {
     throw new NotFoundError('Transaction not found');
   }
 
-  if (TRANSACTION.status !== 'completed') {
+  if (transaction.status !== TRANSACTION_STATUS.COMPLETED) {
     throw new ValidationError('Transaction cannot be refunded');
   }
 
-  const RESULT = await refundPayWayPayment(env, TRANSACTION.payway_tran_id);
+  const result = await refundPayWayPayment(env, transaction.payway_tran_id);
 
-  if (RESULT.success) {
-    await supabaseAdmin.from('transactions').update({ status: 'refunded', processed_at: new Date().toISOString() }).eq('id', transactionId);
+  if (result.success) {
+    await supabaseAdmin
+      .from('transactions')
+      .update({ status: TRANSACTION_STATUS.REFUNDED, processed_at: new Date().toISOString() })
+      .eq('id', transactionId);
   }
 
-  return { success: RESULT.success };
+  return { success: result.success };
 }

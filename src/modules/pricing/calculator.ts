@@ -1,17 +1,13 @@
-/**
- * Pricing Strategy Pattern
- * Implements Strategy pattern for flexible pricing calculations
- *
- * @module modules/pricing/strategies
- */
+import {
+  DELIVERY_METHOD,
+  type DeliveryMethodType,
+  OWNER_COMMISSION_RATE,
+  PROTECTION_RATES,
+  type ProtectionPlan,
+  SERVICE_FEE_RATE,
+} from '@/constants';
+import { ValidationError } from '@/shared/lib/errors';
 
-import type { ProtectionPlan } from '../../constants';
-import { OWNER_COMMISSION_RATE, PROTECTION_RATES, SERVICE_FEE_RATE } from '../../constants';
-import { ValidationError } from '../../shared/lib/errors';
-
-/**
- * Input for pricing calculation
- */
 export interface PricingInput {
   startTime: Date;
   endTime: Date;
@@ -19,15 +15,12 @@ export interface PricingInput {
   priceDaily: number;
   priceWeekly: number | null;
   depositAmount: number;
-  deliveryMethod: 'pickup' | 'delivery';
+  deliveryMethod: DeliveryMethodType;
   deliveryFee: number;
   protectionPlan: ProtectionPlan;
   serviceFeeRate?: number;
 }
 
-/**
- * Result of pricing calculation
- */
 export interface PricingResult {
   subtotal: number;
   service_fee: number;
@@ -40,18 +33,12 @@ export interface PricingResult {
   rental_hours: number;
 }
 
-/**
- * Strategy interface for pricing algorithms
- */
 export interface PricingStrategy {
   readonly name: string;
   canHandle(input: PricingInput, hours: number, days: number): boolean;
   calculate(input: PricingInput, hours: number, days: number): number;
 }
 
-/**
- * Hourly pricing strategy - for short rentals
- */
 export class HourlyPricingStrategy implements PricingStrategy {
   readonly name = 'hourly';
 
@@ -93,13 +80,13 @@ export class WeeklyPricingStrategy implements PricingStrategy {
   calculate(input: PricingInput, _hours: number, days: number): number {
     if (!input.priceWeekly) return input.priceDaily * days;
 
-    const WEEKS = Math.floor(days / 7);
-    const REMAINING_DAYS = days % 7;
-    const WEEKLY_TOTAL = WEEKS * input.priceWeekly + REMAINING_DAYS * input.priceDaily;
+    const weeks = Math.floor(days / 7);
+    const remainingDays = days % 7;
+    const weeklyTotal = weeks * input.priceWeekly + remainingDays * input.priceDaily;
 
     // For 7+ days, compare weekly rate vs daily
     if (days >= 7) {
-      return Math.min(WEEKLY_TOTAL, input.priceDaily * days);
+      return Math.min(weeklyTotal, input.priceDaily * days);
     }
 
     // For 5-6 days, compare weekly rate vs daily
@@ -132,17 +119,17 @@ export class PricingCalculator {
     if (endTime.getTime() <= startTime.getTime()) {
       throw new ValidationError('End time must be after start time');
     }
-    const HOURS = Math.ceil((endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60));
-    return { hours: Math.max(1, HOURS), days: Math.ceil(HOURS / 24) };
+    const hours = Math.ceil((endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60));
+    return { hours: Math.max(1, hours), days: Math.ceil(hours / 24) };
   }
 
   /**
    * Select the best strategy for the given input
    */
   selectStrategy(input: PricingInput, hours: number, days: number): PricingStrategy {
-    for (const STRATEGY of this.strategies) {
-      if (STRATEGY.canHandle(input, hours, days)) {
-        return STRATEGY;
+    for (const strategy of this.strategies) {
+      if (strategy.canHandle(input, hours, days)) {
+        return strategy;
       }
     }
     // Fallback to daily (should never reach here if DailyPricingStrategy is included)
@@ -157,22 +144,22 @@ export class PricingCalculator {
 
     const { hours, days } = PricingCalculator.getDuration(input.startTime, input.endTime);
 
-    const STRATEGY = this.selectStrategy(input, hours, days);
-    const SUBTOTAL = STRATEGY.calculate(input, hours, days);
+    const strategy = this.selectStrategy(input, hours, days);
+    const subtotal = strategy.calculate(input, hours, days);
 
-    const SERVICE_FEE = Math.round(SUBTOTAL * (input.serviceFeeRate ?? SERVICE_FEE_RATE));
-    const DELIVERY_FEE = input.deliveryMethod === 'delivery' ? input.deliveryFee : 0;
-    const PROTECTION_RATE = PROTECTION_RATES[input.protectionPlan] ?? 0;
-    const PROTECTION_FEE = Math.round(SUBTOTAL * PROTECTION_RATE);
+    const serviceFee = Math.round(subtotal * (input.serviceFeeRate ?? SERVICE_FEE_RATE));
+    const deliveryFee = input.deliveryMethod === DELIVERY_METHOD.DELIVERY ? input.deliveryFee : 0;
+    const protectionRate = PROTECTION_RATES[input.protectionPlan] ?? 0;
+    const protectionFee = Math.round(subtotal * protectionRate);
 
     return {
-      subtotal: SUBTOTAL,
-      service_fee: SERVICE_FEE,
-      delivery_fee: DELIVERY_FEE,
-      protection_fee: PROTECTION_FEE,
+      subtotal: subtotal,
+      service_fee: serviceFee,
+      delivery_fee: deliveryFee,
+      protection_fee: protectionFee,
       deposit_amount: input.depositAmount,
-      total_renter_pays: SUBTOTAL + SERVICE_FEE + DELIVERY_FEE + PROTECTION_FEE + input.depositAmount,
-      owner_payout: SUBTOTAL - Math.round(SUBTOTAL * OWNER_COMMISSION_RATE),
+      total_renter_pays: subtotal + serviceFee + deliveryFee + protectionFee + input.depositAmount,
+      owner_payout: subtotal - Math.round(subtotal * OWNER_COMMISSION_RATE),
       rental_days: days,
       rental_hours: hours,
     };

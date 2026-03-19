@@ -1,27 +1,40 @@
-/**
- * Booking Module - State Machine
- * Booking status transitions and validation
- */
+import { BOOKING_STATUS, type BookingStatus, VALID_TRANSITIONS } from '@/constants';
+export type { BookingStatus };
 
-import { BookingTransitionError, ForbiddenError } from '../../shared/lib/errors';
-import type { Booking } from '../../shared/types/database';
-
-export type BookingStatus = 'requested' | 'approved' | 'declined' | 'auto_declined' | 'active' | 'completed' | 'cancelled' | 'disputed' | 'resolved';
-
-const VALID_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
-  requested: ['approved', 'declined', 'auto_declined', 'cancelled'],
-  approved: ['active', 'cancelled'],
-  declined: [],
-  auto_declined: [],
-  active: ['completed', 'disputed', 'cancelled'],
-  completed: [],
-  cancelled: [],
-  disputed: ['resolved'],
-  resolved: [],
-};
+import { BookingTransitionError, ForbiddenError } from '@/shared/lib/errors';
+import type { Booking } from '@/shared/types/database';
 
 export function canTransition(from: BookingStatus, to: BookingStatus): boolean {
   return VALID_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+const SYSTEM_ONLY_STATUSES: BookingStatus[] = [
+  BOOKING_STATUS.ACTIVE,
+  BOOKING_STATUS.COMPLETED,
+  BOOKING_STATUS.RESOLVED,
+  BOOKING_STATUS.AUTO_DECLINED,
+];
+
+function isSystemActor(actorId: string): boolean {
+  return actorId === 'system' || actorId.startsWith('system');
+}
+
+function validateSystemOnlyTransition(to: BookingStatus, actorId: string): void {
+  if (SYSTEM_ONLY_STATUSES.includes(to) && !isSystemActor(actorId)) {
+    throw new ForbiddenError('This transition can only be performed by the system');
+  }
+}
+
+function validateOwnerOnlyTransition(to: BookingStatus, actorId: string, booking: Booking): void {
+  if ((to === BOOKING_STATUS.APPROVED || to === BOOKING_STATUS.DECLINED) && actorId !== booking.owner_id) {
+    throw new ForbiddenError('Only the owner can approve/decline this booking');
+  }
+}
+
+function validateCancellationTransition(to: BookingStatus, actorId: string, booking: Booking): void {
+  if (to === BOOKING_STATUS.CANCELLED && actorId !== booking.renter_id && actorId !== booking.owner_id) {
+    throw new ForbiddenError('Only parties to this booking can cancel');
+  }
 }
 
 export function validateTransition(from: BookingStatus, to: BookingStatus, actorId: string, booking: Booking): void {
@@ -29,22 +42,7 @@ export function validateTransition(from: BookingStatus, to: BookingStatus, actor
     throw new BookingTransitionError(from, to);
   }
 
-  // System-only transitions
-  if (to === 'active' || to === 'completed' || to === 'resolved' || to === 'auto_declined') {
-    if (actorId !== 'system' && !actorId.startsWith('system')) {
-      throw new ForbiddenError('This transition can only be performed by the system');
-    }
-  }
-
-  if (to === 'approved' || to === 'declined') {
-    if (actorId !== booking.owner_id) {
-      throw new ForbiddenError('Only the owner can approve/decline this booking');
-    }
-  }
-
-  if (to === 'cancelled') {
-    if (actorId !== booking.renter_id && actorId !== booking.owner_id) {
-      throw new ForbiddenError('Only parties to this booking can cancel');
-    }
-  }
+  validateSystemOnlyTransition(to, actorId);
+  validateOwnerOnlyTransition(to, actorId, booking);
+  validateCancellationTransition(to, actorId, booking);
 }

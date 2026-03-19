@@ -19,12 +19,12 @@ export type Env = z.infer<typeof envSchema>;
 export type Bindings = Env;
 
 export function getEnv(c: { env: Env }): Env {
-  const PARSED = envSchema.safeParse(c.env);
+  const parsed = envSchema.safeParse(c.env);
 
-  if (!PARSED.success) {
-    const ERRORS = PARSED.error.flatten().fieldErrors;
-    throw new Error(`Invalid environment variables: ${JSON.stringify(ERRORS)}`);
+  if (!parsed.success) {
+    const errors = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`);
+    throw new Error(`Invalid environment variables: ${errors.join(', ')}`);
   }
 
-  return PARSED.data;
+  return parsed.data;
 }

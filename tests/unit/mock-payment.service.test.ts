@@ -72,7 +72,7 @@ describe("Mock Payment Service", () => {
 
       expect(result.success).toBe(true);
       expect(result.grand_total).toBe(0);
-      expect(result.transaction_status).toBe("captured");
+      expect(result.transaction_status).toBe("completed");
     });
   });
 

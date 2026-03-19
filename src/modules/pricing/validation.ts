@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MAX_RENTAL_DAYS, MS_PER_HOUR } from '../../constants';
+import { DELIVERY_METHOD, MAX_RENTAL_DAYS, MS_PER_HOUR, PROTECTION_PLAN } from '@/constants';
 
 export const PricingInputSchema = z
   .object({
@@ -9,9 +9,9 @@ export const PricingInputSchema = z
     priceDaily: z.number().int().min(1),
     priceWeekly: z.number().int().min(1).nullable(),
     depositAmount: z.number().int().min(0).default(0),
-    deliveryMethod: z.enum(['pickup', 'delivery']),
+    deliveryMethod: z.nativeEnum(DELIVERY_METHOD),
     deliveryFee: z.number().int().min(0).default(0),
-    protectionPlan: z.enum(['none', 'basic', 'premium']),
+    protectionPlan: z.nativeEnum(PROTECTION_PLAN),
     serviceFeeRate: z.number().min(0).max(1).default(0.12),
   })
   .refine((d) => d.endTime > d.startTime, {
@@ -20,8 +20,8 @@ export const PricingInputSchema = z
   })
   .refine(
     (d) => {
-      const DAYS = Math.ceil((d.endTime.getTime() - d.startTime.getTime()) / (MS_PER_HOUR * 24));
-      return DAYS <= MAX_RENTAL_DAYS;
+      const days = Math.ceil((d.endTime.getTime() - d.startTime.getTime()) / (MS_PER_HOUR * 24));
+      return days <= MAX_RENTAL_DAYS;
     },
     {
       message: `Rental period cannot exceed ${MAX_RENTAL_DAYS} days`,

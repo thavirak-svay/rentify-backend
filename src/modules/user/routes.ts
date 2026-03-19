@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 import { z } from 'zod';
-import type { Env } from '../../config/env';
-import { ProfileSchema, PublicProfileSchema } from '../../shared/lib/api-schemas';
-import { AuthenticationError } from '../../shared/lib/errors';
-import { bearerAuth, dataResponse, uuidParam } from '../../shared/lib/openapi';
-import { optionalAuth } from '../../shared/middleware/auth';
-import type { Variables } from '../../shared/types/context';
+import type { Env } from '@/config/env';
+import { ProfileSchema, PublicProfileSchema } from '@/shared/lib/api-schemas';
+import { AuthenticationError } from '@/shared/lib/errors';
+import { bearerAuth, dataResponse, uuidParam } from '@/shared/lib/openapi';
+import { optionalAuth } from '@/shared/middleware/auth';
+import type { Variables } from '@/shared/types/context';
 import * as userService from './service';
 
 const users = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -22,19 +22,19 @@ users.get(
     responses: { 200: dataResponse(ProfileSchema, 'Current user profile') },
   }),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
-    const DATA = await userService.getProfile(SUPABASE_ADMIN, USER_ID);
-    userService.updateLastActive(SUPABASE_ADMIN, USER_ID).catch((_err) => {
-      // Last active update is non-blocking
+    const data = await userService.getProfile(supabaseAdmin, userId);
+    userService.updateLastActive(supabaseAdmin, userId).catch(() => {
+      // Fire-and-forget: ignore errors updating last active timestamp
     });
-    return c.json({ data: DATA });
+    return c.json({ data: data });
   },
 );
 
-const UPDATE_PROFILE_SCHEMA = z.object({
+const updateProfileSchema = z.object({
   display_name: z.string().min(1).max(100).optional(),
   avatar_url: z.string().url().optional(),
   bio: z.string().max(500).optional(),
@@ -53,15 +53,15 @@ users.patch(
     security: bearerAuth,
     responses: { 200: dataResponse(ProfileSchema, 'Updated profile') },
   }),
-  validator('json', UPDATE_PROFILE_SCHEMA),
+  validator('json', updateProfileSchema),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const USER_ID = c.get('userId');
-    if (!USER_ID) throw new AuthenticationError();
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const userId = c.get('userId');
+    if (!userId) throw new AuthenticationError();
 
-    const INPUT = c.req.valid('json');
-    const DATA = await userService.updateProfile(SUPABASE_ADMIN, USER_ID, INPUT);
-    return c.json({ data: DATA });
+    const input = c.req.valid('json');
+    const data = await userService.updateProfile(supabaseAdmin, userId, input);
+    return c.json({ data: data });
   },
 );
 
@@ -74,10 +74,10 @@ users.get(
   }),
   validator('param', uuidParam),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
+    const supabaseAdmin = c.get('supabaseAdmin');
     const { id } = c.req.valid('param');
-    const PROFILE = await userService.getPublicProfile(SUPABASE_ADMIN, id);
-    return c.json({ data: PROFILE });
+    const profile = await userService.getPublicProfile(supabaseAdmin, id);
+    return c.json({ data: profile });
   },
 );
 

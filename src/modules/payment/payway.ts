@@ -1,13 +1,14 @@
-/**
- * PayWay Payment Gateway Implementation
- * Concrete implementation of PaymentGateway for ABA PayWay (Cambodia)
- *
- * @module modules/payment/payway
- */
-
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { Env } from '@/config/env';
-import { DEFAULT_CURRENCY, MERCHANT_ENDPOINTS, PAYWAY_ENDPOINTS, PAYWAY_SUCCESS_CODE, PREAUTH_LIFETIME_MINUTES } from '@/constants';
+import {
+  DEFAULT_CURRENCY,
+  MERCHANT_ENDPOINTS,
+  PAYMENT_OPTIONS,
+  PAYMENT_TYPES,
+  PAYWAY_ENDPOINTS,
+  PAYWAY_SUCCESS_CODE,
+  PREAUTH_LIFETIME_MINUTES,
+} from '@/constants';
 import { ExternalServiceError } from '@/shared/lib/errors';
 import type {
   CancelResult,
@@ -59,18 +60,18 @@ export class PayWayGateway implements PaymentGateway {
     operation: string,
     useStatusText = false,
   ): Promise<T> {
-    const RESPONSE = await fetch(`${env.PAYWAY_BASE_URL}${endpoint}`, {
+    const response = await fetch(`${env.PAYWAY_BASE_URL}${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
 
-    if (!RESPONSE.ok) {
-      const ERROR = useStatusText ? RESPONSE.statusText : `${RESPONSE.status} - ${await RESPONSE.text()}`;
-      throw new ExternalServiceError('PayWay', `${operation} failed: ${ERROR}`);
+    if (!response.ok) {
+      const error = useStatusText ? response.statusText : `${response.status} - ${await response.text()}`;
+      throw new ExternalServiceError('PayWay', `${operation} failed: ${error}`);
     }
 
-    return RESPONSE.json() as Promise<T>;
+    return response.json() as Promise<T>;
   }
 
   private static assertSuccess(data: PayWayResponse, operation: string): void {
@@ -80,21 +81,21 @@ export class PayWayGateway implements PaymentGateway {
   }
 
   private static merchantBody(env: Env, tranId: string) {
-    const TIME = PayWayGateway.reqTime();
+    const time = PayWayGateway.reqTime();
     return {
-      request_time: TIME,
+      request_time: time,
       merchant_id: env.PAYWAY_MERCHANT_ID,
       merchant_auth: env.PAYWAY_MERCHANT_AUTH,
       tran_id: tranId,
-      hash: PayWayGateway.hash(env.PAYWAY_API_KEY, TIME + env.PAYWAY_MERCHANT_ID + tranId),
+      hash: PayWayGateway.hash(env.PAYWAY_API_KEY, time + env.PAYWAY_MERCHANT_ID + tranId),
     };
   }
 
   async createPreAuth(env: Env, booking: PaymentBooking, pricing: PaymentPricing): Promise<PreAuthResult> {
-    const TRAN_ID = `RNT${booking.id.replace(/-/g, '').slice(0, 12)}`;
-    const TIME = PayWayGateway.reqTime();
+    const tranId = `RNT${booking.id.replace(/-/g, '').slice(0, 12)}`;
+    const time = PayWayGateway.reqTime();
 
-    const ITEMS = Buffer.from(
+    const items = Buffer.from(
       JSON.stringify([
         {
           name: `Rental: ${booking.listingTitle}`,
@@ -104,27 +105,27 @@ export class PayWayGateway implements PaymentGateway {
       ]),
     ).toString('base64');
 
-    const CALLBACK_URL = Buffer.from(`${env.PAYWAY_CALLBACK_URL}/v1/payments/payway-callback`).toString('base64');
+    const callbackUrl = Buffer.from(`${env.PAYWAY_CALLBACK_URL}/v1/payments/payway-callback`).toString('base64');
 
-    const HASH_STRING = `${TIME}${env.PAYWAY_MERCHANT_ID}${TRAN_ID}${pricing.total_renter_pays}${ITEMS}pre-auth`;
+    const hashString = `${time}${env.PAYWAY_MERCHANT_ID}${tranId}${pricing.total_renter_pays}${items}pre-auth`;
 
-    const RESPONSE = await this.request(
+    const response = await this.request(
       env,
       PAYWAY_ENDPOINTS.PURCHASE,
       {
-        req_time: TIME,
+        req_time: time,
         merchant_id: env.PAYWAY_MERCHANT_ID,
-        tran_id: TRAN_ID,
+        tran_id: tranId,
         firstname: booking.renterFirstName,
         lastname: booking.renterLastName,
         email: booking.renterEmail,
         phone: booking.renterPhone,
         amount: pricing.total_renter_pays,
         currency: DEFAULT_CURRENCY,
-        type: 'pre-auth',
-        payment_option: 'abapay_khqr',
-        items: ITEMS,
-        callback_url: CALLBACK_URL,
+        type: PAYMENT_TYPES.PRE_AUTH,
+        payment_option: PAYMENT_OPTIONS.ABAPAY_KHQR,
+        items: items,
+        callback_url: callbackUrl,
         return_url: `${env.APP_URL}/bookings/${booking.id}/payment-result`,
         cancel_url: `${env.APP_URL}/bookings/${booking.id}`,
         lifetime: PREAUTH_LIFETIME_MINUTES,
@@ -140,94 +141,94 @@ export class PayWayGateway implements PaymentGateway {
               },
             ])
           : undefined,
-        hash: PayWayGateway.hash(env.PAYWAY_API_KEY, HASH_STRING),
+        hash: PayWayGateway.hash(env.PAYWAY_API_KEY, hashString),
       },
-      'pre-auth',
+      PAYMENT_TYPES.PRE_AUTH,
     );
 
     return {
-      transaction_id: TRAN_ID,
-      payway_tran_id: TRAN_ID,
-      checkout_url: RESPONSE as unknown as string,
+      transaction_id: tranId,
+      payway_tran_id: tranId,
+      checkout_url: response as unknown as string,
     };
   }
 
   async capture(env: Env, tranId: string): Promise<CaptureResult> {
-    const DATA = await this.request<PayWayResponse>(
+    const data = await this.request<PayWayResponse>(
       env,
       `/api/merchant-portal/merchant-access/online-transaction/${MERCHANT_ENDPOINTS.CAPTURE}`,
       PayWayGateway.merchantBody(env, tranId),
       'capture',
     );
-    PayWayGateway.assertSuccess(DATA, 'capture');
+    PayWayGateway.assertSuccess(data, 'capture');
     return {
       success: true,
-      grand_total: DATA.grand_total ?? 0,
-      transaction_status: DATA.transaction_status ?? 'unknown',
+      grand_total: data.grand_total ?? 0,
+      transaction_status: data.transaction_status ?? 'unknown',
     };
   }
 
   async cancelPreAuth(env: Env, tranId: string): Promise<CancelResult> {
-    const DATA = await this.request<PayWayResponse>(
+    const data = await this.request<PayWayResponse>(
       env,
       `/api/merchant-portal/merchant-access/online-transaction/${MERCHANT_ENDPOINTS.CANCEL}`,
       PayWayGateway.merchantBody(env, tranId),
       'cancel',
     );
-    PayWayGateway.assertSuccess(DATA, 'cancel');
+    PayWayGateway.assertSuccess(data, 'cancel');
     return {
       success: true,
-      transaction_status: DATA.transaction_status ?? 'unknown',
+      transaction_status: data.transaction_status ?? 'unknown',
     };
   }
 
   async refund(env: Env, tranId: string): Promise<RefundResult> {
-    const DATA = await this.request<PayWayResponse>(
+    const data = await this.request<PayWayResponse>(
       env,
       `/api/merchant-portal/merchant-access/online-transaction/${MERCHANT_ENDPOINTS.REFUND}`,
       PayWayGateway.merchantBody(env, tranId),
       'refund',
     );
-    PayWayGateway.assertSuccess(DATA, 'refund');
+    PayWayGateway.assertSuccess(data, 'refund');
     return {
       success: true,
-      total_refunded: DATA.total_refunded ?? 0,
-      transaction_status: DATA.transaction_status ?? 'unknown',
+      total_refunded: data.total_refunded ?? 0,
+      transaction_status: data.transaction_status ?? 'unknown',
     };
   }
 
   async checkTransaction(env: Env, tranId: string): Promise<TransactionStatus> {
-    const TIME = PayWayGateway.reqTime();
-    const BODY = {
-      req_time: TIME,
+    const time = PayWayGateway.reqTime();
+    const body = {
+      req_time: time,
       merchant_id: env.PAYWAY_MERCHANT_ID,
       tran_id: tranId,
-      hash: PayWayGateway.hash(env.PAYWAY_API_KEY, TIME + env.PAYWAY_MERCHANT_ID + tranId),
+      hash: PayWayGateway.hash(env.PAYWAY_API_KEY, time + env.PAYWAY_MERCHANT_ID + tranId),
     };
 
-    const DATA = await this.request<PayWayResponse>(env, PAYWAY_ENDPOINTS.CHECK_TRANSACTION, BODY, 'check transaction', true);
+    const data = await this.request<PayWayResponse>(env, PAYWAY_ENDPOINTS.CHECK_TRANSACTION, body, 'check transaction', true);
 
     return {
-      payment_status: DATA.data?.payment_status ?? 'UNKNOWN',
-      amount: DATA.data?.amount ?? 0,
-      currency: DATA.data?.currency ?? DEFAULT_CURRENCY,
+      payment_status: data.data?.payment_status ?? 'UNKNOWN',
+      amount: data.data?.amount ?? 0,
+      currency: data.data?.currency ?? DEFAULT_CURRENCY,
     };
   }
 
   verifyCallback(env: Env, payload: Record<string, unknown>): boolean {
-    const { hash: RECEIVED_HASH, ...DATA } = payload;
-    if (typeof RECEIVED_HASH !== 'string') return false;
+    const { hash: receivedHash, ...data } = payload;
+    if (typeof receivedHash !== 'string') return false;
 
-    const DATA_STRING = Object.keys(DATA)
+    const dataString = Object.keys(data)
       .sort()
-      .map((k) => String(DATA[k]))
+      .map((k) => String(data[k]))
       .join('');
-    const EXPECTED = PayWayGateway.hash(env.PAYWAY_API_KEY, DATA_STRING);
+    const expected = PayWayGateway.hash(env.PAYWAY_API_KEY, dataString);
 
     try {
-      const A = Buffer.from(RECEIVED_HASH);
-      const B = Buffer.from(EXPECTED);
-      return A.length === B.length && timingSafeEqual(A, B);
+      const a = Buffer.from(receivedHash);
+      const b = Buffer.from(expected);
+      return a.length === b.length && timingSafeEqual(a, b);
     } catch {
       return false;
     }

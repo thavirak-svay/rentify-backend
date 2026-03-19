@@ -22,23 +22,23 @@ import { structuredLogger } from './shared/middleware/logger';
 import { apiRateLimit } from './shared/middleware/rate-limit';
 import type { Variables } from './shared/types/context';
 
-const APP = new Hono<{ Bindings: Env; Variables: Variables }>();
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-APP.use('*', cors());
-APP.use('*', structuredLogger());
+app.use('*', cors());
+app.use('*', structuredLogger());
 
-APP.use('*', async (c, next) => {
+app.use('*', async (c, next) => {
   c.set('env', c.env as Env);
   c.set('supabase', createSupabaseClient(c.env as Env));
   c.set('supabaseAdmin', createSupabaseAdminClient(c.env as Env));
   await next();
 });
 
-APP.use('/v1/*', apiRateLimit);
+app.use('/v1/*', apiRateLimit);
 
-APP.onError(errorHandler);
+app.onError(errorHandler);
 
-APP.get('/health', (c) => {
+app.get('/health', (c) => {
   return c.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -46,21 +46,21 @@ APP.get('/health', (c) => {
   });
 });
 
-APP.route('/v1/listings', listingRoutes);
-APP.route('/v1/search', searchRoutes);
-APP.route('/v1/media', mediaRoutes);
-APP.route('/v1/bookings', bookingRoutes);
-APP.route('/v1/payments', paymentRoutes);
-APP.route('/v1/threads', threadRoutes);
-APP.route('/v1/reviews', reviewRoutes);
-APP.route('/v1/notifications', notificationRoutes);
-APP.route('/v1/users', userRoutes);
-APP.route('/v1/categories', categoryRoutes);
-APP.route('/v1/mock', mockRoutes);
+app.route('/v1/listings', listingRoutes);
+app.route('/v1/search', searchRoutes);
+app.route('/v1/media', mediaRoutes);
+app.route('/v1/bookings', bookingRoutes);
+app.route('/v1/payments', paymentRoutes);
+app.route('/v1/threads', threadRoutes);
+app.route('/v1/reviews', reviewRoutes);
+app.route('/v1/notifications', notificationRoutes);
+app.route('/v1/users', userRoutes);
+app.route('/v1/categories', categoryRoutes);
+app.route('/v1/mock', mockRoutes);
 
-APP.get(
+app.get(
   '/openapi.json',
-  openAPIRouteHandler(APP, {
+  openAPIRouteHandler(app, {
     documentation: {
       info: {
         title: 'Rentify API',
@@ -85,7 +85,7 @@ APP.get(
   }),
 );
 
-APP.get(
+app.get(
   '/docs',
   Scalar({
     url: '/openapi.json',
@@ -102,5 +102,5 @@ export default withSentry(
     integrations: [Sentry.honoIntegration(), Sentry.consoleLoggingIntegration({ levels: ['log', 'warn', 'error'] })],
     enableLogs: true,
   }),
-  { fetch: APP.fetch },
+  { fetch: app.fetch },
 );

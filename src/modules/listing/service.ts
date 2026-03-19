@@ -1,18 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ConflictError, DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '../../shared/lib/errors';
-import type { CreateListingInput, UpdateListingInput } from '../../shared/lib/validation';
-import type { Listing, ListingMedia } from '../../shared/types/database';
+import { BOOKING_STATUS, LISTING_STATUS } from '@/constants';
+import { ConflictError, DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '@/shared/lib/errors';
+import type { CreateListingInput, UpdateListingInput } from '@/shared/lib/validation';
+import type { Listing, ListingMedia } from '@/shared/types/database';
 
 function validateCoordinates(lat: number | undefined, lng: number | undefined): void {
   // Both lat and lng must be provided together, or neither
-  const HAS_LAT = lat !== undefined;
-  const HAS_LNG = lng !== undefined;
+  const hasLat = lat !== undefined;
+  const hasLng = lng !== undefined;
 
-  if (HAS_LAT !== HAS_LNG) {
+  if (hasLat !== hasLng) {
     throw new ValidationError('Both latitude and longitude must be provided together');
   }
 
-  if (HAS_LAT && HAS_LNG) {
+  if (hasLat && hasLng) {
     if (lat < -90 || lat > 90) {
       throw new ValidationError('Latitude must be between -90 and 90');
     }
@@ -26,7 +27,7 @@ export async function createListing(supabase: SupabaseClient, ownerId: string, i
   if (input.location) {
     validateCoordinates(input.location.lat, input.location.lng);
   }
-  const LOCATION = input.location ? `POINT(${input.location.lng} ${input.location.lat})` : null;
+  const location = input.location ? `POINT(${input.location.lng} ${input.location.lat})` : null;
 
   const { data, error } = await supabase
     .from('listings')
@@ -44,14 +45,14 @@ export async function createListing(supabase: SupabaseClient, ownerId: string, i
       address_text: input.address_text,
       address_city: input.address_city,
       address_country: input.address_country,
-      location: LOCATION,
+      location: location,
       availability_type: input.availability_type,
       min_rental_hours: input.min_rental_hours,
       max_rental_days: input.max_rental_days,
       delivery_available: input.delivery_available,
       delivery_fee: input.delivery_fee,
       pickup_available: input.pickup_available,
-      status: 'draft',
+      status: LISTING_STATUS.DRAFT,
     })
     .select()
     .single();
@@ -69,39 +70,39 @@ export async function getListing(supabase: SupabaseClient, id: string): Promise<
 }
 
 export async function getListingWithMedia(supabase: SupabaseClient, id: string): Promise<{ listing: Listing; media: ListingMedia[] }> {
-  const LISTING = await getListing(supabase, id);
-  const { data: MEDIA } = await supabase.from('listing_media').select('*').eq('listing_id', id).order('sort_order');
+  const listing = await getListing(supabase, id);
+  const { data: media } = await supabase.from('listing_media').select('*').eq('listing_id', id).order('sort_order');
 
-  return { listing: LISTING, media: MEDIA || [] };
+  return { listing: listing, media: media || [] };
 }
 
 export async function updateListing(supabase: SupabaseClient, id: string, userId: string, input: UpdateListingInput): Promise<Listing> {
-  const LISTING = await getListing(supabase, id);
-  if (LISTING.owner_id !== userId) throw new ForbiddenError('You can only update your own listings');
+  const listing = await getListing(supabase, id);
+  if (listing.owner_id !== userId) throw new ForbiddenError('You can only update your own listings');
 
   if (input.location) {
     validateCoordinates(input.location.lat, input.location.lng);
   }
-  const LOCATION = input.location ? `POINT(${input.location.lng} ${input.location.lat})` : undefined;
-  const UPDATE_DATA: Record<string, unknown> = { ...input };
-  if (LOCATION) UPDATE_DATA.location = LOCATION;
+  const location = input.location ? `POINT(${input.location.lng} ${input.location.lat})` : undefined;
+  const updateData: Record<string, unknown> = { ...input };
+  if (location) updateData.location = location;
 
-  const { data, error } = await supabase.from('listings').update(UPDATE_DATA).eq('id', id).select().single();
+  const { data, error } = await supabase.from('listings').update(updateData).eq('id', id).select().single();
 
   if (error) throw new DatabaseError(`Failed to update listing: ${error.message}`);
   return data;
 }
 
 export async function deleteListing(supabase: SupabaseClient, id: string, userId: string): Promise<void> {
-  const LISTING = await getListing(supabase, id);
-  if (LISTING.owner_id !== userId) throw new ForbiddenError('You can only delete your own listings');
+  const listing = await getListing(supabase, id);
+  if (listing.owner_id !== userId) throw new ForbiddenError('You can only delete your own listings');
 
   // Check for active bookings
   const { data: activeBookings } = await supabase
     .from('bookings')
     .select('id')
     .eq('listing_id', id)
-    .in('status', ['requested', 'approved', 'active']);
+    .in('status', [BOOKING_STATUS.REQUESTED, BOOKING_STATUS.APPROVED, BOOKING_STATUS.ACTIVE]);
 
   if (activeBookings && activeBookings.length > 0) {
     throw new ConflictError('Cannot delete listing with active bookings');
@@ -113,13 +114,13 @@ export async function deleteListing(supabase: SupabaseClient, id: string, userId
 }
 
 export async function publishListing(supabase: SupabaseClient, id: string, userId: string): Promise<Listing> {
-  const LISTING = await getListing(supabase, id);
-  if (LISTING.owner_id !== userId) throw new ForbiddenError('You can only publish your own listings');
-  if (LISTING.status !== 'draft') throw new ValidationError('Only draft listings can be published');
+  const listing = await getListing(supabase, id);
+  if (listing.owner_id !== userId) throw new ForbiddenError('You can only publish your own listings');
+  if (listing.status !== LISTING_STATUS.DRAFT) throw new ValidationError('Only draft listings can be published');
 
   const { data, error } = await supabase
     .from('listings')
-    .update({ status: 'active', published_at: new Date().toISOString() })
+    .update({ status: LISTING_STATUS.ACTIVE, published_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .single();
@@ -129,10 +130,10 @@ export async function publishListing(supabase: SupabaseClient, id: string, userI
 }
 
 export async function getUserListings(supabase: SupabaseClient, userId: string, status?: string): Promise<Listing[]> {
-  let QUERY = supabase.from('listings').select('*').eq('owner_id', userId).is('deleted_at', null).order('created_at', { ascending: false });
+  let query = supabase.from('listings').select('*').eq('owner_id', userId).is('deleted_at', null).order('created_at', { ascending: false });
 
-  if (status) QUERY = QUERY.eq('status', status);
-  const { data, error } = await QUERY;
+  if (status) query = query.eq('status', status);
+  const { data, error } = await query;
   if (error) throw new DatabaseError(`Failed to get listings: ${error.message}`);
   return data || [];
 }

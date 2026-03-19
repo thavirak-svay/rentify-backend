@@ -1,21 +1,22 @@
 import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 import { z } from 'zod';
-import type { Env } from '../../config/env';
-import { dataResponse, successResponse } from '../../shared/lib/openapi';
-import type { Variables } from '../../shared/types/context';
+import type { Env } from '@/config/env';
+import { TRANSACTION_STATUS } from '@/constants';
+import { dataResponse, successResponse } from '@/shared/lib/openapi';
+import type { Variables } from '@/shared/types/context';
 import * as mockService from './service';
 
 const mock = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-const CHECKOUT_SCHEMA = z.object({
+const checkoutSchema = z.object({
   booking_id: z.string(),
   amount: z.number(),
   currency: z.string().default('USD'),
   listing_title: z.string(),
 });
 
-const ACTION_SCHEMA = z.object({
+const actionSchema = z.object({
   transaction_id: z.string(),
   action: z.enum(['capture', 'cancel', 'refund']),
 });
@@ -35,16 +36,16 @@ mock.post(
       ),
     },
   }),
-  validator('json', CHECKOUT_SCHEMA),
+  validator('json', checkoutSchema),
   async (c) => {
-    const ENV = c.env;
-    const INPUT = c.req.valid('json');
+    const env = c.env;
+    const input = c.req.valid('json');
 
-    const RESULT = await mockService.createPreAuth(
-      ENV,
+    const result = await mockService.createPreAuth(
+      env,
       {
-        id: INPUT.booking_id,
-        listingTitle: INPUT.listing_title,
+        id: input.booking_id,
+        listingTitle: input.listing_title,
         renterFirstName: 'Test',
         renterLastName: 'User',
         renterEmail: 'test@example.com',
@@ -53,15 +54,15 @@ mock.post(
         ownerPaywayBeneficiaryId: '',
       },
       {
-        total_renter_pays: INPUT.amount,
-        owner_payout: INPUT.amount * 0.88,
+        total_renter_pays: input.amount,
+        owner_payout: input.amount * 0.88,
       },
     );
 
     return c.json({
       data: {
-        checkout_url: RESULT.checkout_url,
-        transaction_id: RESULT.transaction_id,
+        checkout_url: result.checkout_url,
+        transaction_id: result.transaction_id,
       },
     });
   },
@@ -84,23 +85,23 @@ mock.post(
       ),
     },
   }),
-  validator('json', ACTION_SCHEMA),
+  validator('json', actionSchema),
   async (c) => {
-    const ENV = c.env;
+    const env = c.env;
     const { transaction_id, action } = c.req.valid('json');
 
     if (action === 'capture') {
-      await mockService.captureWithPayout(ENV, transaction_id);
+      await mockService.captureWithPayout(env, transaction_id);
     } else if (action === 'cancel') {
-      await mockService.cancelPreAuth(ENV, transaction_id);
+      await mockService.cancelPreAuth(env, transaction_id);
     } else if (action === 'refund') {
-      await mockService.refundPayment(ENV, transaction_id);
+      await mockService.refundPayment(env, transaction_id);
     }
 
-    const STATUS_MAP: Record<string, string> = {
-      capture: 'captured',
-      cancel: 'cancelled',
-      refund: 'refunded',
+    const statusMap: Record<string, string> = {
+      capture: TRANSACTION_STATUS.COMPLETED,
+      cancel: TRANSACTION_STATUS.CANCELLED,
+      refund: TRANSACTION_STATUS.REFUNDED,
     };
 
     return c.json({
@@ -108,7 +109,7 @@ mock.post(
         success: true,
         transaction_id,
         action,
-        status: STATUS_MAP[action] || 'unknown',
+        status: statusMap[action] || 'unknown',
       },
     });
   },
@@ -133,17 +134,17 @@ mock.get(
   }),
   validator('param', z.object({ transaction_id: z.string() })),
   async (c) => {
-    const ENV = c.env;
+    const env = c.env;
     const { transaction_id } = c.req.valid('param');
 
-    const RESULT = await mockService.checkTransaction(ENV, transaction_id);
+    const result = await mockService.checkTransaction(env, transaction_id);
 
     return c.json({
       data: {
         transaction_id,
-        status: RESULT.payment_status,
-        amount: RESULT.amount,
-        currency: RESULT.currency,
+        status: result.payment_status,
+        amount: result.amount,
+        currency: result.currency,
       },
     });
   },
@@ -166,10 +167,10 @@ mock.post(
     }),
   ),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
+    const supabaseAdmin = c.get('supabaseAdmin');
     const { transaction_id, status } = c.req.valid('json');
 
-    await mockService.simulateCallback(SUPABASE_ADMIN, transaction_id, status);
+    await mockService.simulateCallback(supabaseAdmin, transaction_id, status);
 
     return c.json({ success: true, data: { transaction_id, status } });
   },

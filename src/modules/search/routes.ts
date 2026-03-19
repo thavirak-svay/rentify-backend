@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 import { z } from 'zod';
-import type { Env } from '../../config/env';
-import { SearchListingSchema } from '../../shared/lib/api-schemas';
-import { dataArrayResponse } from '../../shared/lib/openapi';
-import { optionalAuth } from '../../shared/middleware/auth';
-import type { Variables } from '../../shared/types/context';
+import type { Env } from '@/config/env';
+import { SearchListingSchema } from '@/shared/lib/api-schemas';
+import { dataArrayResponse } from '@/shared/lib/openapi';
+import { optionalAuth } from '@/shared/middleware/auth';
+import type { Variables } from '@/shared/types/context';
 import * as searchService from './service';
 
 const search = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -36,10 +36,10 @@ search.get(
     }),
   ),
   async (c) => {
-    const SUPABASE_ADMIN = c.get('supabaseAdmin');
-    const PARAMS = c.req.valid('query');
-    const DATA = await searchService.searchListings(SUPABASE_ADMIN, PARAMS);
-    return c.json({ data: DATA });
+    const supabaseAdmin = c.get('supabaseAdmin');
+    const params = c.req.valid('query');
+    const data = await searchService.searchListings(supabaseAdmin, params);
+    return c.json({ data: data });
   },
 );
 

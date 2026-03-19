@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { DatabaseError, NotFoundError } from '../../shared/lib/errors';
-import type { Category } from '../../shared/types/database';
+import { DatabaseError, NotFoundError } from '@/shared/lib/errors';
+import type { Category } from '@/shared/types/database';
 
 export async function getCategories(supabaseAdmin: SupabaseClient): Promise<Category[]> {
   const { data, error } = await supabaseAdmin.from('categories').select().order('sort_order');

@@ -10,24 +10,24 @@ import { PayWayGateway } from './payway';
 
 export type GatewayType = 'payway' | 'stripe';
 
-const INSTANCES: Map<string, PaymentGateway> = new Map();
+const instances: Map<string, PaymentGateway> = new Map();
 
 export function createPaymentGateway(type: GatewayType = 'payway'): PaymentGateway {
-  const CACHED = INSTANCES.get(type);
-  if (CACHED) return CACHED;
+  const cached = instances.get(type);
+  if (cached) return cached;
 
-  let GATEWAY: PaymentGateway;
+  let gateway: PaymentGateway;
 
   switch (type) {
     case 'payway':
-      GATEWAY = new PayWayGateway();
+      gateway = new PayWayGateway();
       break;
     default:
       throw new Error(`Unsupported payment gateway: ${type}`);
   }
 
-  INSTANCES.set(type, GATEWAY);
-  return GATEWAY;
+  instances.set(type, gateway);
+  return gateway;
 }
 
 /**
@@ -41,7 +41,7 @@ export function getDefaultPaymentGateway(): PaymentGateway {
  * Clear cached instances (useful for testing)
  */
 export function clearPaymentGatewayCache(): void {
-  INSTANCES.clear();
+  instances.clear();
 }
 
 /**
