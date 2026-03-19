@@ -229,7 +229,7 @@
       }
     },
     {
-      "includes": ["src/modules/mock/routes.ts"],
+      "includes": ["src/modules/mock/routes.ts", "src/modules/booking/service.ts"],
       "linter": {
         "rules": {
           "security": {

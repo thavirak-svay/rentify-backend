@@ -1,8 +1,8 @@
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import type { Env } from '../../config/env';
-import { AppError } from '../lib/errors';
-import type { Variables } from '../types/context';
+import type { Env } from '@/config/env';
+import { AppError } from '@/shared/lib/errors';
+import type { Variables } from '@/shared/types/context';
 
 interface RateLimitStore {
   [key: string]: {
@@ -11,7 +11,7 @@ interface RateLimitStore {
   };
 }
 
-const STORE: RateLimitStore = {};
+const store: RateLimitStore = {};
 
 export function rateLimit(options: {
   windowMs: number;
@@ -19,33 +19,33 @@ export function rateLimit(options: {
   keyGenerator?: (c: Context<{ Bindings: Env; Variables: Variables }>) => string;
 }) {
   return createMiddleware(async (c, next) => {
-    const KEY = options.keyGenerator ? options.keyGenerator(c) : c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
+    const key = options.keyGenerator ? options.keyGenerator(c) : c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
 
-    const NOW = Date.now();
-    const WINDOW_START = NOW - options.windowMs;
+    const now = Date.now();
+    const windowStart = now - options.windowMs;
 
-    Object.keys(STORE).forEach((k) => {
-      if (STORE[k]?.resetTime && STORE[k].resetTime < WINDOW_START) {
-        delete STORE[k];
+    Object.keys(store).forEach((k) => {
+      if (store[k]?.resetTime && store[k].resetTime < windowStart) {
+        delete store[k];
       }
     });
 
-    STORE[KEY] ??= {
+    store[key] ??= {
       count: 0,
-      resetTime: NOW + options.windowMs,
+      resetTime: now + options.windowMs,
     };
 
-    if (STORE[KEY].count >= options.maxRequests) {
-      const RETRY_AFTER = Math.ceil((STORE[KEY].resetTime - NOW) / 1000);
-      c.header('Retry-After', RETRY_AFTER.toString());
+    if (store[key].count >= options.maxRequests) {
+      const retryAfter = Math.ceil((store[key].resetTime - now) / 1000);
+      c.header('Retry-After', retryAfter.toString());
       throw new AppError('Too many requests, please try again later', 429, 'RATE_LIMIT_EXCEEDED');
     }
 
-    STORE[KEY].count++;
+    store[key].count++;
 
     c.header('X-RateLimit-Limit', options.maxRequests.toString());
-    c.header('X-RateLimit-Remaining', (options.maxRequests - STORE[KEY].count).toString());
-    c.header('X-RateLimit-Reset', STORE[KEY].resetTime.toString());
+    c.header('X-RateLimit-Remaining', (options.maxRequests - store[key].count).toString());
+    c.header('X-RateLimit-Reset', store[key].resetTime.toString());
 
     await next();
   });
@@ -55,9 +55,9 @@ export const authRateLimit = rateLimit({
   windowMs: 60 * 1000,
   maxRequests: 5,
   keyGenerator: (c) => {
-    const IP = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
-    const PATH = c.req.path;
-    return `${IP}:${PATH}`;
+    const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
+    const path = c.req.path;
+    return `${ip}:${path}`;
   },
 });
 
@@ -65,8 +65,8 @@ export const apiRateLimit = rateLimit({
   windowMs: 60 * 1000,
   maxRequests: 100,
   keyGenerator: (c) => {
-    const USER_ID = c.get('userId') || c.req.header('x-forwarded-for') || 'anonymous';
-    return `api:${USER_ID}`;
+    const userId = c.get('userId') || c.req.header('x-forwarded-for') || 'anonymous';
+    return `api:${userId}`;
   },
 });
 
@@ -74,8 +74,8 @@ export const writeRateLimit = rateLimit({
   windowMs: 60 * 1000,
   maxRequests: 10,
   keyGenerator: (c) => {
-    const USER_ID = c.get('userId');
-    if (!USER_ID) return 'anonymous';
-    return `write:${USER_ID}`;
+    const userId = c.get('userId');
+    if (!userId) return 'anonymous';
+    return `write:${userId}`;
   },
 });

@@ -1,5 +1,5 @@
-import type { Env } from '../../config/env';
-import type { createSupabaseAdminClient, createSupabaseClient } from '../../config/supabase';
+import type { Env } from '@/config/env';
+import type { createSupabaseAdminClient, createSupabaseClient } from '@/config/supabase';
 
 export type Variables = {
   env: Env;

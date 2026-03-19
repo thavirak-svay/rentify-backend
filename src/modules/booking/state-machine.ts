@@ -1,4 +1,4 @@
-import { BOOKING_STATUS, type BookingStatus, VALID_TRANSITIONS } from '@/constants';
+import { BOOKING_STATUS, type BookingStatus, SYSTEM_ONLY_STATUSES, VALID_TRANSITIONS } from '@/constants';
 export type { BookingStatus };
 
 import { BookingTransitionError, ForbiddenError } from '@/shared/lib/errors';
@@ -7,13 +7,6 @@ import type { Booking } from '@/shared/types/database';
 export function canTransition(from: BookingStatus, to: BookingStatus): boolean {
   return VALID_TRANSITIONS[from]?.includes(to) ?? false;
 }
-
-const SYSTEM_ONLY_STATUSES: BookingStatus[] = [
-  BOOKING_STATUS.ACTIVE,
-  BOOKING_STATUS.COMPLETED,
-  BOOKING_STATUS.RESOLVED,
-  BOOKING_STATUS.AUTO_DECLINED,
-];
 
 function isSystemActor(actorId: string): boolean {
   return actorId === 'system' || actorId.startsWith('system');

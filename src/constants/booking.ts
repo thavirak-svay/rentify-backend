@@ -14,6 +14,13 @@ export type BookingStatus = (typeof BOOKING_STATUS)[keyof typeof BOOKING_STATUS]
 
 export const AUTO_DECLINE_TIMEOUT_HOURS = 24;
 
+export const SYSTEM_ONLY_STATUSES: BookingStatus[] = [
+  BOOKING_STATUS.ACTIVE,
+  BOOKING_STATUS.COMPLETED,
+  BOOKING_STATUS.RESOLVED,
+  BOOKING_STATUS.AUTO_DECLINED,
+];
+
 export const VALID_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   requested: ['approved', 'declined', 'auto_declined', 'cancelled'],
   approved: ['active', 'cancelled'],

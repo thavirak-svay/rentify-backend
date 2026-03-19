@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BOOKING_STATUS } from '@/constants';
 import { DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '@/shared/lib/errors';
-import type { Review } from '@/shared/types/database';
+import type { Booking, Review } from '@/shared/types/database';
 
 export interface CreateReviewInput {
   booking_id: string;
@@ -14,6 +14,30 @@ export interface ReviewRepository {
   findByListing(listingId: string): Promise<Review[]>;
   findByTargetUser(userId: string): Promise<Review[]>;
   create(input: CreateReviewInput, reviewerId: string): Promise<Review>;
+}
+
+async function validateBookingForReview(supabaseAdmin: SupabaseClient, bookingId: string, reviewerId: string): Promise<{ booking: Booking; targetId: string }> {
+  const { data: booking, error: bookingError } = await supabaseAdmin.from('bookings').select().eq('id', bookingId).single();
+
+  if (bookingError || !booking) {
+    throw new NotFoundError('Booking not found');
+  }
+
+  if (booking.status !== BOOKING_STATUS.COMPLETED) {
+    throw new ValidationError('Can only review completed bookings');
+  }
+
+  if (booking.renter_id !== reviewerId && booking.owner_id !== reviewerId) {
+    throw new ForbiddenError('You can only review bookings you participated in');
+  }
+
+  const targetId = booking.renter_id === reviewerId ? booking.owner_id : booking.renter_id;
+
+  if (targetId === reviewerId) {
+    throw new ValidationError('You cannot review yourself');
+  }
+
+  return { booking, targetId };
 }
 
 export function createReviewRepository(supabaseAdmin: SupabaseClient): ReviewRepository {
@@ -56,26 +80,7 @@ export function createReviewRepository(supabaseAdmin: SupabaseClient): ReviewRep
       throw new ValidationError('Rating must be between 1 and 5');
     }
 
-    const { data: booking, error: bookingError } = await supabaseAdmin.from('bookings').select().eq('id', input.booking_id).single();
-
-    if (bookingError || !booking) {
-      throw new NotFoundError('Booking not found');
-    }
-
-    if (booking.status !== BOOKING_STATUS.COMPLETED) {
-      throw new ValidationError('Can only review completed bookings');
-    }
-
-    if (booking.renter_id !== reviewerId && booking.owner_id !== reviewerId) {
-      throw new ForbiddenError('You can only review bookings you participated in');
-    }
-
-    const targetId = booking.renter_id === reviewerId ? booking.owner_id : booking.renter_id;
-
-    // Prevent self-review
-    if (targetId === reviewerId) {
-      throw new ValidationError('You cannot review yourself');
-    }
+    const { booking, targetId } = await validateBookingForReview(supabaseAdmin, input.booking_id, reviewerId);
 
     const existingReview = await findByBookingAndReviewer(input.booking_id, reviewerId);
     if (existingReview) {
@@ -99,7 +104,7 @@ export function createReviewRepository(supabaseAdmin: SupabaseClient): ReviewRep
       throw new DatabaseError(`Failed to create review: ${reviewError.message}`);
     }
 
-    notifyReviewReceived(supabaseAdmin, targetId, reviewerId, review).catch((_err) => {
+    notifyReviewReceived(supabaseAdmin, targetId, reviewerId, review).catch(() => {
       // Notification failure is non-blocking
     });
 

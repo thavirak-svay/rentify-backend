@@ -1,12 +1,5 @@
-/**
- * Schema barrel — re-exports auto-generated supazod schemas with clean aliases,
- * plus API-only schemas that don't come from DB tables.
- *
- * Routes should import from here, never from db-schemas.ts directly.
- * db-schemas.ts is auto-generated — do NOT edit it.
- */
-
 import { z } from 'zod';
+import { IDENTITY_STATUS } from '@/constants';
 
 export {
   publicBookingsRowSchema as BookingSchema,
@@ -36,7 +29,7 @@ export const PublicProfileSchema = z.object({
   rating_avg: z.number(),
   rating_count: z.number(),
   completed_rentals: z.number(),
-  identity_status: z.union([z.literal('unverified'), z.literal('pending'), z.literal('verified'), z.literal('rejected')]),
+  identity_status: z.nativeEnum(IDENTITY_STATUS),
   created_at: z.string(),
 });
 

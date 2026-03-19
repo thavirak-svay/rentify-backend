@@ -70,30 +70,31 @@ export class CompensationService {
     const { type, payload } = item;
     const gateway = getPaymentGateway();
 
-    if (type === COMPENSATION_TYPES.CANCEL_PREAUTH) {
-      if (!payload.payway_tran_id) throw new Error('Missing payway_tran_id');
-      await gateway.cancelPreAuth(env, payload.payway_tran_id);
-      return;
-    }
+    const handlers: Record<CompensationType, () => Promise<void>> = {
+      [COMPENSATION_TYPES.CANCEL_PREAUTH]: async () => {
+        if (!payload.payway_tran_id) throw new Error('Missing payway_tran_id');
+        await gateway.cancelPreAuth(env, payload.payway_tran_id);
+      },
+      [COMPENSATION_TYPES.REFUND]: async () => {
+        if (!payload.payway_tran_id) throw new Error('Missing payway_tran_id');
+        await gateway.refund(env, payload.payway_tran_id);
+      },
+      [COMPENSATION_TYPES.CAPTURE]: async () => {
+        if (!payload.payway_tran_id) throw new Error('Missing payway_tran_id');
+        await gateway.capture(env, payload.payway_tran_id);
+      },
+      [COMPENSATION_TYPES.CANCEL_BOOKING]: async () => {
+        if (!item.booking_id) throw new Error('Missing booking_id');
+        await this.supabase
+          .from('bookings')
+          .update({ status: BOOKING_STATUS.CANCELLED, cancelled_at: new Date().toISOString() })
+          .eq('id', item.booking_id);
+      },
+    };
 
-    if (type === COMPENSATION_TYPES.REFUND) {
-      if (!payload.payway_tran_id) throw new Error('Missing payway_tran_id');
-      await gateway.refund(env, payload.payway_tran_id);
-      return;
-    }
-
-    if (type === COMPENSATION_TYPES.CAPTURE) {
-      if (!payload.payway_tran_id) throw new Error('Missing payway_tran_id');
-      await gateway.capture(env, payload.payway_tran_id);
-      return;
-    }
-
-    if (type === COMPENSATION_TYPES.CANCEL_BOOKING) {
-      if (!item.booking_id) throw new Error('Missing booking_id');
-      await this.supabase
-        .from('bookings')
-        .update({ status: BOOKING_STATUS.CANCELLED, cancelled_at: new Date().toISOString() })
-        .eq('id', item.booking_id);
+    const handler = handlers[type];
+    if (handler) {
+      await handler();
       return;
     }
 

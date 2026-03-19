@@ -30,12 +30,12 @@ export const listQuerySchema = z.object({
 });
 
 export function validate<T>(schema: z.ZodSchema<T>, data: unknown): T {
-  const RESULT = schema.safeParse(data);
-  if (!RESULT.success) {
-    const MESSAGES = RESULT.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');
-    throw new ValidationError(MESSAGES);
+  const result = schema.safeParse(data);
+  if (!result.success) {
+    const messages = result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');
+    throw new ValidationError(messages);
   }
-  return RESULT.data;
+  return result.data;
 }
 
 export type PaginationInput = z.infer<typeof paginationSchema>;

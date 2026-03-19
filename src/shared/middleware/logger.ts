@@ -16,38 +16,38 @@ export const log = {
 
 export function structuredLogger(): MiddlewareHandler {
   return async (c, next) => {
-    const START = Date.now();
-    const PATH = c.req.path;
-    const METHOD = c.req.method;
-    const REQUEST_ID = c.req.header('x-request-id') || crypto.randomUUID();
+    const start = Date.now();
+    const path = c.req.path;
+    const method = c.req.method;
+    const requestId = c.req.header('x-request-id') || crypto.randomUUID();
 
-    c.set('requestId', REQUEST_ID);
-    c.header('x-request-id', REQUEST_ID);
+    c.set('requestId', requestId);
+    c.header('x-request-id', requestId);
 
     await next();
 
-    const DURATION = Date.now() - START;
-    const STATUS = c.res.status;
+    const duration = Date.now() - start;
+    const status = c.res.status;
 
-    const IP = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip');
+    const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip');
 
-    const ENTRY = JSON.stringify({
-      method: METHOD,
-      path: PATH,
-      status: STATUS,
-      duration_ms: DURATION,
-      request_id: REQUEST_ID,
-      ip: IP,
+    const entry = JSON.stringify({
+      method: method,
+      path: path,
+      status: status,
+      duration_ms: duration,
+      request_id: requestId,
+      ip: ip,
       user_agent: c.req.header('user-agent'),
       user_id: c.get('userId') as string | undefined,
     });
 
-    if (STATUS >= 500) {
-      console.error(ENTRY);
-    } else if (STATUS >= 400) {
-      console.warn(ENTRY);
+    if (status >= 500) {
+      console.error(entry);
+    } else if (status >= 400) {
+      console.warn(entry);
     } else {
-      console.log(ENTRY);
+      console.log(entry);
     }
   };
 }
