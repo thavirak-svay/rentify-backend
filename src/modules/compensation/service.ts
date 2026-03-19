@@ -64,20 +64,20 @@ export class CompensationService {
 
   private async processItem(env: Env, item: CompensationItem): Promise<void> {
     const { type, payload } = item;
-    const gateway = getPaymentGateway();
+    const gateway = getPaymentGateway(env);
 
     const handlers: Record<CompensationType, () => Promise<void>> = {
       [COMPENSATION_TYPES.CANCEL_PREAUTH]: async () => {
         if (!payload.payway_tran_id) throw new Error('Missing payway_tran_id');
-        await gateway.cancelPreAuth(env, payload.payway_tran_id);
+        await gateway.cancelPreAuth(payload.payway_tran_id);
       },
       [COMPENSATION_TYPES.REFUND]: async () => {
         if (!payload.payway_tran_id) throw new Error('Missing payway_tran_id');
-        await gateway.refund(env, payload.payway_tran_id);
+        await gateway.refund(payload.payway_tran_id);
       },
       [COMPENSATION_TYPES.CAPTURE]: async () => {
         if (!payload.payway_tran_id) throw new Error('Missing payway_tran_id');
-        await gateway.capture(env, payload.payway_tran_id);
+        await gateway.capture(payload.payway_tran_id);
       },
       [COMPENSATION_TYPES.CANCEL_BOOKING]: async () => {
         if (!item.booking_id) throw new Error('Missing booking_id');

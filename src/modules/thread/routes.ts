@@ -1,27 +1,15 @@
 import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
-import { z } from 'zod';
 import type { Env } from '@/config/env';
-import { DEFAULT_MESSAGE_LIMIT, MAX_MESSAGE_LENGTH, MIN_THREAD_PARTICIPANTS } from '@/constants/message';
-import { MAX_PAGE_LIMIT } from '@/constants/api';
 import { MessageSchema, MessageThreadSchema } from '@/shared/lib/api-schemas';
 import { bearerAuth, dataArrayResponse, dataResponse, successResponse, uuidParam } from '@/shared/lib/openapi';
 import { getAuthContext } from '@/shared/lib/route-context';
 import { optionalAuth } from '@/shared/middleware/auth';
 import type { Variables } from '@/shared/types/context';
 import * as threadService from './service';
+import { createThreadSchema, messagesQuerySchema, sendMessageSchema } from './validation';
 
 const threads = new Hono<{ Bindings: Env; Variables: Variables }>();
-
-const createThreadSchema = z.object({
-  listing_id: z.uuid().optional(),
-  booking_id: z.uuid().optional(),
-  participant_ids: z.array(z.uuid()).min(MIN_THREAD_PARTICIPANTS),
-});
-
-const sendMessageSchema = z.object({
-  content: z.string().min(1).max(MAX_MESSAGE_LENGTH),
-});
 
 threads.use('*', optionalAuth);
 
@@ -83,13 +71,7 @@ threads.get(
     responses: { 200: dataArrayResponse(MessageSchema, 'List of messages') },
   }),
   validator('param', uuidParam),
-  validator(
-    'query',
-    z.object({
-      limit: z.coerce.number().min(1).max(MAX_PAGE_LIMIT).default(DEFAULT_MESSAGE_LIMIT),
-      before: z.iso.datetime().optional(),
-    }),
-  ),
+  validator('query', messagesQuerySchema),
   async (c) => {
     const { supabase, userId } = getAuthContext(c);
     const { id } = c.req.valid('param');

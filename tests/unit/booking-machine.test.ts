@@ -5,7 +5,7 @@ import {
   type BookingStatus,
 } from "../../src/modules/booking/state-machine";
 import { BookingTransitionError, ForbiddenError } from "../../src/shared/lib/errors";
-import type { Booking } from "../../src/shared/types/database";
+import type { Booking } from "../../src/generated/database";
 
 function createMockBooking(overrides: Partial<Booking> = {}): Booking {
   return {

@@ -5,8 +5,6 @@
  * @module modules/payment/interface
  */
 
-import type { Env } from '@/config/env';
-
 export interface PaymentBooking {
   id: string;
   listingTitle: string;
@@ -55,15 +53,15 @@ export interface TransactionStatus {
 export interface PaymentGateway {
   readonly name: string;
 
-  createPreAuth(env: Env, booking: PaymentBooking, pricing: PaymentPricing): Promise<PreAuthResult>;
+  createPreAuth(booking: PaymentBooking, pricing: PaymentPricing): Promise<PreAuthResult>;
 
-  capture(env: Env, transactionId: string): Promise<CaptureResult>;
+  capture(transactionId: string): Promise<CaptureResult>;
 
-  cancelPreAuth(env: Env, transactionId: string): Promise<CancelResult>;
+  cancelPreAuth(transactionId: string): Promise<CancelResult>;
 
-  refund(env: Env, transactionId: string): Promise<RefundResult>;
+  refund(transactionId: string): Promise<RefundResult>;
 
-  checkTransaction(env: Env, transactionId: string): Promise<TransactionStatus>;
+  checkTransaction(transactionId: string): Promise<TransactionStatus>;
 
-  verifyCallback(env: Env, payload: Record<string, unknown>): boolean;
+  verifyCallback(payload: Record<string, unknown>): boolean;
 }

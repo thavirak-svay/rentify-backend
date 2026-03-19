@@ -4,9 +4,9 @@ import { LISTING_STATUS } from '@/constants/listing';
 import { fetchMany, softDeleteOne, updateOne } from '@/shared/lib/db-helpers';
 import { ConflictError, NotFoundError, ValidationError } from '@/shared/lib/errors';
 import { timestamp } from '@/shared/lib/timestamp';
-import { requireOwnership } from '@/shared/lib/validators';
-import type { CreateListingInput, UpdateListingInput } from '@/shared/lib/validation';
-import type { Listing, ListingMedia } from '@/shared/types/database';
+import { requireOwnership } from '@/shared/lib/guards';
+import type { CreateListingInput, UpdateListingInput } from './validation';
+import type { Listing, ListingMedia } from '@/generated/database';
 
 function validateCoordinates(lat: number | undefined, lng: number | undefined): void {
   const hasLat = lat !== undefined;
@@ -106,7 +106,7 @@ export async function updateListing(
   const updateData: Record<string, unknown> = { ...input };
   if (location) updateData.location = location;
 
-  return updateOne<Listing>(supabase, 'listings', id, updateData, 'Listing');
+  return updateOne<Listing>(supabase, 'listings', id, updateData);
 }
 
 export async function deleteListing(supabase: SupabaseClient, id: string, userId: string): Promise<void> {
@@ -124,7 +124,7 @@ export async function deleteListing(supabase: SupabaseClient, id: string, userId
     throw new ConflictError('Cannot delete listing with active bookings');
   }
 
-  await softDeleteOne(supabase, 'listings', id, 'Listing');
+  await softDeleteOne(supabase, 'listings', id);
 }
 
 export async function publishListing(supabase: SupabaseClient, id: string, userId: string): Promise<Listing> {
@@ -135,7 +135,7 @@ export async function publishListing(supabase: SupabaseClient, id: string, userI
     throw new ValidationError('Only draft listings can be published');
   }
 
-  return updateOne<Listing>(supabase, 'listings', id, { status: LISTING_STATUS.ACTIVE, published_at: timestamp.now() }, 'Listing');
+  return updateOne<Listing>(supabase, 'listings', id, { status: LISTING_STATUS.ACTIVE, published_at: timestamp.now() });
 }
 
 export async function getUserListings(

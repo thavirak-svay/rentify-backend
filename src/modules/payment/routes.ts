@@ -1,28 +1,16 @@
 import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
-
 import { z } from 'zod';
 import type { Env } from '@/config/env';
-import { dataResponse, jsonContent, successResponse } from '@/shared/lib/openapi';
+import { dataResponse, jsonContent, successResponse, uuidParam } from '@/shared/lib/openapi';
 import { optionalAuth } from '@/shared/middleware/auth';
 import type { Variables } from '@/shared/types/context';
 import * as paymentService from './service';
+import { payWayCallbackSchema, transactionStatusSchema } from './validation';
 
 const payments = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 payments.use('*', optionalAuth);
-
-const transactionStatusSchema = z.object({
-  payment_status: z.string(),
-  amount: z.number(),
-  currency: z.string(),
-});
-
-const payWayCallbackSchema = z.object({
-  tran_id: z.string(),
-  status: z.string(),
-  hash: z.string(),
-});
 
 payments.post(
   '/payway-callback',
@@ -49,7 +37,7 @@ payments.get(
     summary: 'Get transaction status',
     responses: { 200: dataResponse(transactionStatusSchema, 'Transaction status') },
   }),
-  validator('param', z.object({ id: z.uuid() })),
+  validator('param', uuidParam),
   async (c) => {
     const supabaseAdmin = c.get('supabaseAdmin');
     const env = c.get('env');
@@ -69,7 +57,7 @@ payments.post(
       200: jsonContent(z.object({ data: z.object({ success: z.boolean() }) }), 'Refund processed'),
     },
   }),
-  validator('param', z.object({ id: z.uuid() })),
+  validator('param', uuidParam),
   async (c) => {
     const supabaseAdmin = c.get('supabaseAdmin');
     const env = c.get('env');

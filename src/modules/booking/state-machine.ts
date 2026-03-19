@@ -2,7 +2,7 @@ import { BOOKING_STATUS, type BookingStatus, SYSTEM_ONLY_STATUSES, VALID_TRANSIT
 export type { BookingStatus };
 
 import { BookingTransitionError, ForbiddenError } from '@/shared/lib/errors';
-import type { Booking } from '@/shared/types/database';
+import type { Booking } from '@/generated/database';
 
 export function canTransition(from: BookingStatus, to: BookingStatus): boolean {
   return VALID_TRANSITIONS[from]?.includes(to) ?? false;

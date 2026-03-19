@@ -190,8 +190,8 @@
     },
     {
       "includes": [
-        "src/shared/types/database.ts",
-        "src/shared/lib/db-schemas.ts"
+        "src/generated/database.ts",
+        "src/generated/db-schemas.ts"
       ],
       "linter": {
         "enabled": false

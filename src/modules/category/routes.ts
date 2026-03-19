@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
-import { z } from 'zod';
 import type { Env } from '@/config/env';
 import { CategorySchema } from '@/shared/lib/api-schemas';
 import { dataArrayResponse, dataResponse } from '@/shared/lib/openapi';
 import { optionalAuth } from '@/shared/middleware/auth';
 import type { Variables } from '@/shared/types/context';
 import * as categoryService from './service';
+import { slugParamSchema } from './validation';
 
 const categories = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -33,7 +33,7 @@ categories.get(
     summary: 'Get category by slug',
     responses: { 200: dataResponse(CategorySchema, 'Category details') },
   }),
-  validator('param', z.object({ slug: z.string() })),
+  validator('param', slugParamSchema),
   async (c) => {
     const supabaseAdmin = c.get('supabaseAdmin');
     const { slug } = c.req.valid('param');

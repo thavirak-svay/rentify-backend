@@ -2,29 +2,18 @@ import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 import { z } from 'zod';
 import type { Env } from '@/config/env';
-import { DELIVERY_METHOD, PROTECTION_PLAN } from '@/constants/payment';
 import { BookingSchema } from '@/shared/lib/api-schemas';
 import { bearerAuth, createDataResponseFactory, dataArrayResponse, jsonContent, uuidParam } from '@/shared/lib/openapi';
 import { getAuthContext, getContext } from '@/shared/lib/route-context';
 import { optionalAuth } from '@/shared/middleware/auth';
 import type { Variables } from '@/shared/types/context';
 import * as bookingService from './service';
+import { cancelBookingSchema, createBookingSchema, bookingQuerySchema } from './validation';
 
 const bookings = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 const tag = 'Bookings';
 const bookingResponse = createDataResponseFactory(BookingSchema);
-
-const createBookingSchema = z.object({
-  listing_id: z.uuid(),
-  start_time: z.iso.datetime(),
-  end_time: z.iso.datetime(),
-  delivery_method: z.enum(DELIVERY_METHOD).optional(),
-  delivery_address: z.string().optional(),
-  protection_plan: z.enum(PROTECTION_PLAN).optional(),
-});
-
-const cancelBookingSchema = z.object({ reason: z.string().optional() });
 
 bookings.use('*', optionalAuth);
 
@@ -72,7 +61,7 @@ bookings.get(
     security: bearerAuth,
     responses: { 200: dataArrayResponse(BookingSchema, 'List of bookings') },
   }),
-  validator('query', z.object({ role: z.enum(['renter', 'owner']).optional() })),
+  validator('query', bookingQuerySchema),
   async (c) => {
     const { supabase, userId } = getAuthContext(c);
     const { role } = c.req.valid('query');

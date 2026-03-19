@@ -1,25 +1,13 @@
 import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
-import { z } from 'zod';
 import type { Env } from '@/config/env';
-import { TRANSACTION_STATUS } from '@/constants/payment';
+import { MERCHANT_ACTION, TRANSACTION_STATUS } from '@/constants/payment';
+import { createMockPaymentClient } from '@/client/mock';
 import { dataResponse, successResponse } from '@/shared/lib/openapi';
 import type { Variables } from '@/shared/types/context';
-import * as mockService from './service';
+import { actionSchema, checkoutSchema, simulateCallbackSchema, transactionIdParamSchema } from './validation';
 
 const mock = new Hono<{ Bindings: Env; Variables: Variables }>();
-
-const checkoutSchema = z.object({
-  booking_id: z.string(),
-  amount: z.number(),
-  currency: z.string().default('USD'),
-  listing_title: z.string(),
-});
-
-const actionSchema = z.object({
-  transaction_id: z.string(),
-  action: z.enum(['capture', 'cancel', 'refund']),
-});
 
 mock.post(
   '/checkout',
@@ -28,10 +16,7 @@ mock.post(
     summary: 'Create mock payment checkout (testing only)',
     responses: {
       200: dataResponse(
-        z.object({
-          checkout_url: z.string(),
-          transaction_id: z.string(),
-        }),
+        checkoutSchema,
         'Checkout created',
       ),
     },
@@ -41,8 +26,8 @@ mock.post(
     const env = c.env;
     const input = c.req.valid('json');
 
-    const result = await mockService.createPreAuth(
-      env,
+    const client = createMockPaymentClient(env);
+    const result = await client.createPreAuth(
       {
         id: input.booking_id,
         listingTitle: input.listing_title,
@@ -75,12 +60,7 @@ mock.post(
     summary: 'Execute mock payment action (testing only)',
     responses: {
       200: dataResponse(
-        z.object({
-          success: z.boolean(),
-          transaction_id: z.string(),
-          action: z.string(),
-          status: z.string(),
-        }),
+        actionSchema,
         'Action executed',
       ),
     },
@@ -90,18 +70,20 @@ mock.post(
     const env = c.env;
     const { transaction_id, action } = c.req.valid('json');
 
-    if (action === 'capture') {
-      await mockService.captureWithPayout(env, transaction_id);
-    } else if (action === 'cancel') {
-      await mockService.cancelPreAuth(env, transaction_id);
-    } else if (action === 'refund') {
-      await mockService.refundPayment(env, transaction_id);
+    const client = createMockPaymentClient(env);
+
+    if (action === MERCHANT_ACTION.CAPTURE) {
+      await client.capture(transaction_id);
+    } else if (action === MERCHANT_ACTION.CANCEL) {
+      await client.cancelPreAuth(transaction_id);
+    } else if (action === MERCHANT_ACTION.REFUND) {
+      await client.refund(transaction_id);
     }
 
     const statusMap: Record<string, string> = {
-      capture: TRANSACTION_STATUS.COMPLETED,
-      cancel: TRANSACTION_STATUS.CANCELLED,
-      refund: TRANSACTION_STATUS.REFUNDED,
+      [MERCHANT_ACTION.CAPTURE]: TRANSACTION_STATUS.COMPLETED,
+      [MERCHANT_ACTION.CANCEL]: TRANSACTION_STATUS.CANCELLED,
+      [MERCHANT_ACTION.REFUND]: TRANSACTION_STATUS.REFUNDED,
     };
 
     return c.json({
@@ -122,22 +104,18 @@ mock.get(
     summary: 'Get mock transaction status (testing only)',
     responses: {
       200: dataResponse(
-        z.object({
-          transaction_id: z.string(),
-          status: z.string(),
-          amount: z.number(),
-          currency: z.string(),
-        }),
+        actionSchema,
         'Transaction status',
       ),
     },
   }),
-  validator('param', z.object({ transaction_id: z.string() })),
+  validator('param', transactionIdParamSchema),
   async (c) => {
     const env = c.env;
     const { transaction_id } = c.req.valid('param');
 
-    const result = await mockService.checkTransaction(env, transaction_id);
+    const client = createMockPaymentClient(env);
+    const result = await client.checkTransaction(transaction_id);
 
     return c.json({
       data: {
@@ -159,18 +137,25 @@ mock.post(
       200: successResponse('Callback simulated'),
     },
   }),
-  validator(
-    'json',
-    z.object({
-      transaction_id: z.string(),
-      status: z.enum(['APPROVED', 'DECLINED', 'PENDING', 'CANCELLED']),
-    }),
-  ),
+  validator('json', simulateCallbackSchema),
   async (c) => {
     const supabaseAdmin = c.get('supabaseAdmin');
     const { transaction_id, status } = c.req.valid('json');
 
-    await mockService.simulateCallback(supabaseAdmin, transaction_id, status);
+    const { data: transaction } = await supabaseAdmin.from('transactions').select('booking_id').eq('payway_tran_id', transaction_id).single();
+
+    if (transaction) {
+      await supabaseAdmin
+        .from('transactions')
+        .update({
+          status: status === 'APPROVED' ? TRANSACTION_STATUS.AUTHORIZED : TRANSACTION_STATUS.FAILED,
+        })
+        .eq('payway_tran_id', transaction_id);
+
+      if (status === 'APPROVED') {
+        await supabaseAdmin.from('bookings').update({ payment_authorized: true }).eq('id', transaction.booking_id);
+      }
+    }
 
     return c.json({ success: true, data: { transaction_id, status } });
   },

@@ -3,8 +3,8 @@ import { BOOKING_STATUS } from '@/constants/booking';
 import { MAX_RATING, MIN_RATING } from '@/constants/review';
 import { fetchMany, fetchOne, insertOne } from '@/shared/lib/db-helpers';
 import { ForbiddenError, ValidationError } from '@/shared/lib/errors';
-import { notifyNewReview } from '@/shared/services/notification';
-import type { Booking, Review } from '@/shared/types/database';
+import { notifyNewReview } from '@/modules/notification/service';
+import type { Booking, Review } from '@/generated/database';
 
 export interface CreateReviewInput {
   booking_id: string;
@@ -17,7 +17,7 @@ async function validateBookingForReview(
   bookingId: string,
   reviewerId: string,
 ): Promise<{ booking: Booking; targetId: string }> {
-  const booking = await fetchOne<Booking>(supabase, 'bookings', { id: bookingId }, 'Booking');
+  const booking = await fetchOne<Booking>(supabase, 'bookings', { id: bookingId });
 
   if (booking.status !== BOOKING_STATUS.COMPLETED) {
     throw new ValidationError('Can only review completed bookings');
@@ -70,7 +70,6 @@ export async function createReview(
       rating: input.rating,
       comment: input.comment,
     },
-    'Review',
   );
 
   // Notify target (non-blocking)

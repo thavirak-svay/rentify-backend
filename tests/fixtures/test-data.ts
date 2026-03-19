@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@supabase/supabase-js";
-import type { Database, Profile, Listing, Booking, Category, MessageThread, Transaction } from "../../src/shared/types/database";
+import type { Database, Profile, Listing, Booking, Category, MessageThread, Transaction } from "../../src/generated/database";
 
 // Test configuration - use environment variables
 export const TEST_CONFIG = {

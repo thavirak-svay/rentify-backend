@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Profile } from "../../src/shared/types/database";
+import type { Profile } from "../../src/generated/database";
 import * as userService from "../../src/modules/user/service";
 
 describe("User Service", () => {
@@ -53,7 +53,7 @@ describe("User Service", () => {
     test("should throw error when profile not found", async () => {
       await expect(
         userService.getProfile(createMockSupabase(null, { message: "Not found" }), "nonexistent")
-      ).rejects.toThrow("Profile not found");
+      ).rejects.toThrow("Record not found in profiles");
     });
   });
 
@@ -89,7 +89,7 @@ describe("User Service", () => {
           "user-123",
           { display_name: "New Name" }
         )
-      ).rejects.toThrow("Failed to update profile: Update failed");
+      ).rejects.toThrow("Failed to update profiles: Update failed");
     });
 
     test("should validate profile input - invalid display name length", async () => {

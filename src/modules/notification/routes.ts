@@ -2,14 +2,13 @@ import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 import { z } from 'zod';
 import type { Env } from '@/config/env';
-import { DEFAULT_MESSAGE_LIMIT } from '@/constants/message';
-import { MAX_PAGE_LIMIT } from '@/constants/api';
 import { NotificationSchema } from '@/shared/lib/api-schemas';
 import { bearerAuth, dataArrayResponse, jsonContent, successResponse, uuidParam } from '@/shared/lib/openapi';
 import { getAuthContext } from '@/shared/lib/route-context';
 import { optionalAuth } from '@/shared/middleware/auth';
 import type { Variables } from '@/shared/types/context';
 import * as notificationService from './service';
+import { notificationQuerySchema } from './validation';
 
 const notifications = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -23,13 +22,7 @@ notifications.get(
     security: bearerAuth,
     responses: { 200: dataArrayResponse(NotificationSchema, 'List of notifications') },
   }),
-  validator(
-    'query',
-    z.object({
-      limit: z.coerce.number().min(1).max(MAX_PAGE_LIMIT).default(DEFAULT_MESSAGE_LIMIT),
-      unread_only: z.coerce.boolean().default(false),
-    }),
-  ),
+  validator('query', notificationQuerySchema),
   async (c) => {
     const { supabase, userId } = getAuthContext(c);
     const { limit, unread_only } = c.req.valid('query');

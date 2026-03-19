@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Listing, ListingMedia } from "../../src/shared/types/database";
+import type { Listing, ListingMedia } from "../../src/generated/database";
 import * as listingService from "../../src/modules/listing/service";
 
 describe("Listing Service", () => {

@@ -9,7 +9,7 @@ import { getAuthContext, getContext } from '@/shared/lib/route-context';
 import { optionalAuth } from '@/shared/middleware/auth';
 import type { Variables } from '@/shared/types/context';
 import * as listingService from './service';
-import { createListingSchema } from '@/shared/lib/validation';
+import { createListingSchema } from './validation';
 
 const listings = new Hono<{ Bindings: Env; Variables: Variables }>();
 

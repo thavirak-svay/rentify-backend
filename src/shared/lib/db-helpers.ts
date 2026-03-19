@@ -11,7 +11,6 @@ export async function fetchOne<T>(
   options:
     | { id: string; column?: never; value?: never }
     | { id?: never; column: string; value: unknown },
-  entityName = 'Resource',
 ): Promise<T> {
   let query = supabase.from(table).select();
 
@@ -24,7 +23,7 @@ export async function fetchOne<T>(
   const { data, error } = await query.single();
 
   if (error || !data) {
-    throw new NotFoundError(`${entityName} not found`);
+    throw new NotFoundError(`Record not found in ${table}`);
   }
 
   return data as T;
@@ -41,7 +40,6 @@ export async function fetchOneWithRelations<T>(
   options:
     | { id: string; column?: never; value?: never }
     | { id?: never; column: string; value: unknown },
-  entityName = 'Resource',
 ): Promise<T> {
   let query = supabase.from(table).select(select);
 
@@ -54,7 +52,7 @@ export async function fetchOneWithRelations<T>(
   const { data, error } = await query.single();
 
   if (error || !data) {
-    throw new NotFoundError(`${entityName} not found`);
+    throw new NotFoundError(`Record not found in ${table}`);
   }
 
   return data as T;
@@ -104,12 +102,11 @@ export async function insertOne<T>(
   supabase: SupabaseClient,
   table: string,
   input: Record<string, unknown>,
-  entityName = 'Resource',
 ): Promise<T> {
   const { data, error } = await supabase.from(table).insert(input).select().single();
 
   if (error) {
-    throw new DatabaseError(`Failed to create ${entityName.toLowerCase()}: ${error.message}`);
+    throw new DatabaseError(`Failed to insert into ${table}: ${error.message}`);
   }
 
   return data as T;
@@ -142,16 +139,15 @@ export async function updateOne<T>(
   table: string,
   id: string,
   updates: Record<string, unknown>,
-  entityName = 'Resource',
 ): Promise<T> {
   const { data, error } = await supabase.from(table).update(updates).eq('id', id).select().single();
 
   if (error) {
-    throw new DatabaseError(`Failed to update ${entityName.toLowerCase()}: ${error.message}`);
+    throw new DatabaseError(`Failed to update ${table}: ${error.message}`);
   }
 
   if (!data) {
-    throw new NotFoundError(`${entityName} not found`);
+    throw new NotFoundError(`Record not found in ${table}`);
   }
 
   return data as T;
@@ -164,12 +160,11 @@ export async function softDeleteOne(
   supabase: SupabaseClient,
   table: string,
   id: string,
-  entityName = 'Resource',
 ): Promise<void> {
   const { error } = await supabase.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', id);
 
   if (error) {
-    throw new DatabaseError(`Failed to delete ${entityName.toLowerCase()}: ${error.message}`);
+    throw new DatabaseError(`Failed to delete from ${table}: ${error.message}`);
   }
 }
 

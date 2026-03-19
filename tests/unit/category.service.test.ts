@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Category } from "../../src/shared/types/database";
+import type { Category } from "../../src/generated/database";
 import * as categoryService from "../../src/modules/category/service";
 
 describe("Category Service", () => {

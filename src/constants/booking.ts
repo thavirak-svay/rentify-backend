@@ -1,3 +1,11 @@
+export const BOOKING_ROLE = {
+  RENTER: 'renter',
+  OWNER: 'owner',
+  ADMIN: 'admin',
+} as const;
+
+export type BookingRole = (typeof BOOKING_ROLE)[keyof typeof BOOKING_ROLE];
+
 export const BOOKING_STATUS = {
   REQUESTED: 'requested',
   APPROVED: 'approved',
@@ -22,25 +30,25 @@ export const SYSTEM_ONLY_STATUSES: BookingStatus[] = [
 ];
 
 export const VALID_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
-  requested: ['approved', 'declined', 'auto_declined', 'cancelled'],
-  approved: ['active', 'cancelled'],
-  declined: [],
-  auto_declined: [],
-  active: ['completed', 'cancelled', 'disputed'],
-  completed: [],
-  cancelled: [],
-  disputed: ['resolved'],
-  resolved: [],
+  [BOOKING_STATUS.REQUESTED]: [BOOKING_STATUS.APPROVED, BOOKING_STATUS.DECLINED, BOOKING_STATUS.AUTO_DECLINED, BOOKING_STATUS.CANCELLED],
+  [BOOKING_STATUS.APPROVED]: [BOOKING_STATUS.ACTIVE, BOOKING_STATUS.CANCELLED],
+  [BOOKING_STATUS.DECLINED]: [],
+  [BOOKING_STATUS.AUTO_DECLINED]: [],
+  [BOOKING_STATUS.ACTIVE]: [BOOKING_STATUS.COMPLETED, BOOKING_STATUS.CANCELLED, BOOKING_STATUS.DISPUTED],
+  [BOOKING_STATUS.COMPLETED]: [],
+  [BOOKING_STATUS.CANCELLED]: [],
+  [BOOKING_STATUS.DISPUTED]: [BOOKING_STATUS.RESOLVED],
+  [BOOKING_STATUS.RESOLVED]: [],
 };
 
 export const TRANSITION_ROLES = {
-  REQUESTED_TO_APPROVED: ['owner'],
-  REQUESTED_TO_DECLINED: ['owner'],
-  REQUESTED_TO_CANCELLED: ['renter', 'owner'],
-  APPROVED_TO_ACTIVE: ['owner'],
-  APPROVED_TO_CANCELLED: ['renter', 'owner'],
-  ACTIVE_TO_COMPLETED: ['owner'],
-  ACTIVE_TO_CANCELLED: ['renter', 'owner'],
-  ACTIVE_TO_DISPUTED: ['renter', 'owner'],
-  DISPUTED_TO_RESOLVED: ['admin'],
+  REQUESTED_TO_APPROVED: [BOOKING_ROLE.OWNER],
+  REQUESTED_TO_DECLINED: [BOOKING_ROLE.OWNER],
+  REQUESTED_TO_CANCELLED: [BOOKING_ROLE.RENTER, BOOKING_ROLE.OWNER],
+  APPROVED_TO_ACTIVE: [BOOKING_ROLE.OWNER],
+  APPROVED_TO_CANCELLED: [BOOKING_ROLE.RENTER, BOOKING_ROLE.OWNER],
+  ACTIVE_TO_COMPLETED: [BOOKING_ROLE.OWNER],
+  ACTIVE_TO_CANCELLED: [BOOKING_ROLE.RENTER, BOOKING_ROLE.OWNER],
+  ACTIVE_TO_DISPUTED: [BOOKING_ROLE.RENTER, BOOKING_ROLE.OWNER],
+  DISPUTED_TO_RESOLVED: [BOOKING_ROLE.ADMIN],
 } as const;

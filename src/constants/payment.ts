@@ -48,6 +48,14 @@ export const TRANSACTION_TYPE = {
 
 export type TransactionType = (typeof TRANSACTION_TYPE)[keyof typeof TRANSACTION_TYPE];
 
+export const MERCHANT_ACTION = {
+  CAPTURE: 'capture',
+  CANCEL: 'cancel',
+  REFUND: 'refund',
+} as const;
+
+export type MerchantAction = (typeof MERCHANT_ACTION)[keyof typeof MERCHANT_ACTION];
+
 export const IDENTITY_STATUS = {
   UNVERIFIED: 'unverified',
   PENDING: 'pending',

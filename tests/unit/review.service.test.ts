@@ -129,7 +129,7 @@ describe("Review Service", () => {
           booking_id: "nonexistent",
           rating: 5,
         })
-      ).rejects.toThrow("Booking not found");
+      ).rejects.toThrow("Record not found in bookings");
     });
 
     test("should throw error for non-completed booking", async () => {

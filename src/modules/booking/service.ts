@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Env } from '@/config/env';
-import { BOOKING_STATUS } from '@/constants/booking';
+import { BOOKING_ROLE, type BookingRole, BOOKING_STATUS } from '@/constants/booking';
 import { LISTING_STATUS } from '@/constants/listing';
 import {
   DELIVERY_METHOD,
@@ -12,20 +12,15 @@ import {
 } from '@/constants/payment';
 import { SERVICE_FEE_RATE } from '@/constants/pricing';
 import { queueCompensation } from '@/modules/compensation/service';
-import {
-  cancelPreAuth,
-  captureWithPayout,
-  createPreAuth,
-  type PayWayBooking,
-  refundPayment,
-} from '@/modules/mock/service';
+import { getPaymentGateway } from '@/modules/payment/factory';
+import type { PaymentBooking, PaymentPricing } from '@/modules/payment/gateway';
 import { calculatePricing, type PricingInput } from '@/modules/pricing/calculator';
 import { fetchOne, fetchOneWithRelations, insertOne, updateOne } from '@/shared/lib/db-helpers';
 import { ConflictError, DatabaseError, NotFoundError, ValidationError } from '@/shared/lib/errors';
 import { timestamp } from '@/shared/lib/timestamp';
-import { requireBookingParticipant } from '@/shared/lib/validators';
+import { requireBookingParticipant } from './guards';
 import { log } from '@/shared/middleware/logger';
-import type { Booking, Profile } from '@/shared/types/database';
+import type { Booking, Profile } from '@/generated/database';
 import { validateTransition } from './state-machine';
 
 export interface CreateBookingInput {
@@ -59,7 +54,6 @@ async function fetchListingWithOwner(supabase: SupabaseClient, listingId: string
     'listings',
     '*, profiles!listings_owner_id_fkey(*)',
     { id: listingId },
-    'Listing',
   );
 
   // Additional checks for active listing
@@ -140,7 +134,7 @@ async function createBookingRecord(
     delivery_address: input.delivery_address,
     protection_plan: input.protection_plan || PROTECTION_PLAN.NONE,
     payment_authorized: false,
-  }, 'Booking');
+  });
 }
 
 async function createPaymentForBooking(
@@ -155,11 +149,10 @@ async function createPaymentForBooking(
     supabase,
     'profiles',
     { id: renterId },
-    'Profile',
   );
 
   const owner = listing.profiles as Profile;
-  const paywayBooking: PayWayBooking = {
+  const paymentBooking: PaymentBooking = {
     id: booking.id,
     listingTitle: listing.title,
     renterFirstName: renter.display_name?.split(' ')[0] || 'User',
@@ -170,7 +163,13 @@ async function createPaymentForBooking(
     ownerPaywayBeneficiaryId: owner.payway_beneficiary_id || '',
   };
 
-  const paymentResult = await createPreAuth(env, paywayBooking, pricing);
+  const paymentPricing: PaymentPricing = {
+    total_renter_pays: pricing.total_renter_pays,
+    owner_payout: pricing.owner_payout,
+  };
+
+  const gateway = getPaymentGateway(env);
+  const paymentResult = await gateway.createPreAuth(paymentBooking, paymentPricing);
 
   await supabase.from('transactions').insert({
     booking_id: booking.id,
@@ -213,7 +212,6 @@ export async function approveBooking(
     'bookings',
     '*, transactions(*)',
     { id: bookingId },
-    'Booking',
   );
 
   validateTransition(booking.status, BOOKING_STATUS.APPROVED, userId, booking);
@@ -224,7 +222,8 @@ export async function approveBooking(
   }
 
   try {
-    await captureWithPayout(env, transaction.payway_tran_id);
+    const gateway = getPaymentGateway(env);
+    await gateway.capture(transaction.payway_tran_id);
   } catch (err) {
     log.error(
       { err, booking_id: bookingId, tran_id: transaction.payway_tran_id },
@@ -238,7 +237,6 @@ export async function approveBooking(
     'bookings',
     bookingId,
     { status: BOOKING_STATUS.APPROVED, approved_at: timestamp.now() },
-    'Booking',
   );
 
   const { error: txError } = await supabase
@@ -264,7 +262,6 @@ export async function declineBooking(
     'bookings',
     '*, transactions(*)',
     { id: bookingId },
-    'Booking',
   );
 
   validateTransition(booking.status, BOOKING_STATUS.DECLINED, userId, booking);
@@ -272,7 +269,8 @@ export async function declineBooking(
   const transaction = booking.transactions?.[0];
   if (transaction?.payway_tran_id) {
     try {
-      await cancelPreAuth(env, transaction.payway_tran_id);
+      const gateway = getPaymentGateway(env);
+      await gateway.cancelPreAuth(transaction.payway_tran_id);
     } catch (err) {
       log.error(
         { err, booking_id: bookingId, tran_id: transaction.payway_tran_id },
@@ -287,7 +285,6 @@ export async function declineBooking(
     'bookings',
     bookingId,
     { status: BOOKING_STATUS.DECLINED, declined_at: timestamp.now() },
-    'Booking',
   );
 
   if (transaction?.id) {
@@ -311,10 +308,11 @@ async function processCancellationPayment(
 ): Promise<void> {
   if (!transaction?.payway_tran_id) return;
 
+  const gateway = getPaymentGateway(env);
   if (booking.status === BOOKING_STATUS.REQUESTED || booking.status === BOOKING_STATUS.APPROVED) {
-    cancelPreAuth(env, transaction.payway_tran_id);
+    await gateway.cancelPreAuth(transaction.payway_tran_id);
   } else if (booking.status === BOOKING_STATUS.ACTIVE) {
-    refundPayment(env, transaction.payway_tran_id);
+    await gateway.refund(transaction.payway_tran_id);
   }
 }
 
@@ -368,7 +366,6 @@ export async function cancelBooking(
     'bookings',
     '*, transactions(*)',
     { id: bookingId },
-    'Booking',
   );
 
   validateTransition(booking.status, BOOKING_STATUS.CANCELLED, userId, booking);
@@ -412,7 +409,7 @@ export async function cancelBooking(
 }
 
 export async function completeBooking(supabase: SupabaseClient, bookingId: string): Promise<Booking> {
-  const booking = await fetchOne<Booking>(supabase, 'bookings', { id: bookingId }, 'Booking');
+  const booking = await fetchOne<Booking>(supabase, 'bookings', { id: bookingId });
 
   validateTransition(booking.status, BOOKING_STATUS.COMPLETED, 'system', booking);
 
@@ -421,12 +418,11 @@ export async function completeBooking(supabase: SupabaseClient, bookingId: strin
     'bookings',
     bookingId,
     { status: BOOKING_STATUS.COMPLETED, completed_at: timestamp.now() },
-    'Booking',
   );
 }
 
 export async function getBooking(supabase: SupabaseClient, bookingId: string, userId: string): Promise<Booking> {
-  const booking = await fetchOne<Booking>(supabase, 'bookings', { id: bookingId }, 'Booking');
+  const booking = await fetchOne<Booking>(supabase, 'bookings', { id: bookingId });
   requireBookingParticipant(booking, userId);
   return booking;
 }
@@ -434,7 +430,7 @@ export async function getBooking(supabase: SupabaseClient, bookingId: string, us
 export async function getUserBookings(
   supabase: SupabaseClient,
   userId: string,
-  role?: 'renter' | 'owner',
+  role?: BookingRole,
 ): Promise<Booking[]> {
   let query = supabase
     .from('bookings')
@@ -442,9 +438,9 @@ export async function getUserBookings(
     .or(`renter_id.eq.${userId},owner_id.eq.${userId}`)
     .order('created_at', { ascending: false });
 
-  if (role === 'renter') {
+  if (role === BOOKING_ROLE.RENTER) {
     query = query.eq('renter_id', userId);
-  } else if (role === 'owner') {
+  } else if (role === BOOKING_ROLE.OWNER) {
     query = query.eq('owner_id', userId);
   }
 
@@ -458,7 +454,7 @@ export async function getUserBookings(
 }
 
 export async function activateBooking(supabase: SupabaseClient, bookingId: string): Promise<Booking> {
-  const booking = await fetchOne<Booking>(supabase, 'bookings', { id: bookingId }, 'Booking');
+  const booking = await fetchOne<Booking>(supabase, 'bookings', { id: bookingId });
 
   validateTransition(booking.status, BOOKING_STATUS.ACTIVE, 'system', booking);
 
@@ -467,6 +463,5 @@ export async function activateBooking(supabase: SupabaseClient, bookingId: strin
     'bookings',
     bookingId,
     { status: BOOKING_STATUS.ACTIVE, started_at: timestamp.now() },
-    'Booking',
   );
 }

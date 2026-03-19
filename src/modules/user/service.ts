@@ -9,7 +9,7 @@ import {
 } from '@/constants/user';
 import { fetchOne, updateOne } from '@/shared/lib/db-helpers';
 import { timestamp } from '@/shared/lib/timestamp';
-import type { Profile } from '@/shared/types/database';
+import type { Profile } from '@/generated/database';
 
 export const updateProfileSchema = z.object({
   display_name: z.string().min(MIN_DISPLAY_NAME_LENGTH).max(MAX_DISPLAY_NAME_LENGTH).optional(),
@@ -25,7 +25,7 @@ export const updateProfileSchema = z.object({
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
 export async function getProfile(supabase: SupabaseClient, userId: string): Promise<Profile> {
-  return fetchOne<Profile>(supabase, 'profiles', { id: userId }, 'Profile');
+  return fetchOne<Profile>(supabase, 'profiles', { id: userId });
 }
 
 export async function getPublicProfile(supabase: SupabaseClient, userId: string): Promise<Partial<Profile>> {
@@ -49,7 +49,7 @@ export async function updateProfile(
   userId: string,
   input: UpdateProfileInput,
 ): Promise<Profile> {
-  return updateOne<Profile>(supabase, 'profiles', userId, input, 'Profile');
+  return updateOne<Profile>(supabase, 'profiles', userId, input);
 }
 
 export async function updateLastActive(supabase: SupabaseClient, userId: string): Promise<void> {

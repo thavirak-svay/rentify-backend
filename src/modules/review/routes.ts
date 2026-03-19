@@ -1,22 +1,15 @@
 import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
-import { z } from 'zod';
 import type { Env } from '@/config/env';
-import { MAX_COMMENT_LENGTH, MAX_RATING, MIN_RATING } from '@/constants/review';
 import { ReviewSchema } from '@/shared/lib/api-schemas';
 import { bearerAuth, dataArrayResponse, dataResponse, uuidParam } from '@/shared/lib/openapi';
 import { getAuthContext, getContext } from '@/shared/lib/route-context';
 import { optionalAuth } from '@/shared/middleware/auth';
 import type { Variables } from '@/shared/types/context';
 import * as reviewService from './service';
+import { createReviewSchema } from './validation';
 
 const reviews = new Hono<{ Bindings: Env; Variables: Variables }>();
-
-const createReviewSchema = z.object({
-  booking_id: z.uuid(),
-  rating: z.number().int().min(MIN_RATING).max(MAX_RATING),
-  comment: z.string().max(MAX_COMMENT_LENGTH).optional(),
-});
 
 reviews.use('*', optionalAuth);
 

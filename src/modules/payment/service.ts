@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Env } from '@/config/env';
 import { TRANSACTION_STATUS } from '@/constants/payment';
-import { checkTransaction, refundPayment as refundPayWayPayment, verifyCallbackHash } from '@/modules/mock/service';
+import { getPaymentGateway } from '@/modules/payment/factory';
 import { DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '@/shared/lib/errors';
 import { log } from '@/shared/middleware/logger';
 
@@ -22,7 +22,8 @@ export interface RefundResult {
 }
 
 export async function handlePaywayCallback(supabaseAdmin: SupabaseClient, env: Env, payload: PayWayCallbackPayload): Promise<void> {
-  if (!verifyCallbackHash(env, payload)) {
+  const gateway = getPaymentGateway(env);
+  if (!gateway.verifyCallback({ ...payload })) {
     throw new ForbiddenError('Invalid payment callback hash');
   }
 
@@ -69,7 +70,8 @@ export async function getTransactionStatus(supabaseAdmin: SupabaseClient, env: E
     throw new NotFoundError('Transaction not found');
   }
 
-  return checkTransaction(env, transaction.payway_tran_id);
+  const gateway = getPaymentGateway(env);
+  return gateway.checkTransaction(transaction.payway_tran_id);
 }
 
 export async function refundTransaction(supabaseAdmin: SupabaseClient, env: Env, transactionId: string): Promise<RefundResult> {
@@ -83,7 +85,8 @@ export async function refundTransaction(supabaseAdmin: SupabaseClient, env: Env,
     throw new ValidationError('Transaction cannot be refunded');
   }
 
-  const result = await refundPayWayPayment(env, transaction.payway_tran_id);
+  const gateway = getPaymentGateway(env);
+  const result = await gateway.refund(transaction.payway_tran_id);
 
   if (result.success) {
     await supabaseAdmin

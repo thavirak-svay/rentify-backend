@@ -122,7 +122,7 @@ describe("Message Service", () => {
 
       await expect(
         messageService.createThread(mockClient, "user-1", { participant_ids: ["user-1", "user-2"] })
-      ).rejects.toThrow("Failed to create thread: Insert failed");
+      ).rejects.toThrow("Failed to insert into message_threads: Insert failed");
     });
   });
 
@@ -145,7 +145,7 @@ describe("Message Service", () => {
 
       await expect(
         messageService.getThread(mockClient, "nonexistent", "user-1")
-      ).rejects.toThrow("Thread not found");
+      ).rejects.toThrow("Record not found in message_threads");
     });
 
     test("should throw error when user is not participant", async () => {
@@ -247,7 +247,7 @@ describe("Message Service", () => {
 
       await expect(
         messageService.sendMessage(mockClient, "thread-123", "user-1", "Hello!")
-      ).rejects.toThrow("Failed to create message: Insert failed");
+      ).rejects.toThrow("Failed to insert into messages: Insert failed");
     });
 
     test("should send message and create notification", async () => {

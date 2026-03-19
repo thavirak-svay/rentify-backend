@@ -3,9 +3,9 @@ import { DEFAULT_MESSAGE_LIMIT, MAX_MESSAGE_PREVIEW_LENGTH } from '@/constants/m
 import { fetchOne, insertOne } from '@/shared/lib/db-helpers';
 import { ForbiddenError, NotFoundError, ValidationError } from '@/shared/lib/errors';
 import { timestamp } from '@/shared/lib/timestamp';
-import { requireThreadParticipant } from '@/shared/lib/validators';
-import { notifyNewMessage } from '@/shared/services/notification';
-import type { Message, MessageThread } from '@/shared/types/database';
+import { requireThreadParticipant } from './guards';
+import { notifyNewMessage } from '@/modules/notification/service';
+import type { Message, MessageThread } from '@/generated/database';
 
 export interface CreateThreadInput {
   listing_id?: string;
@@ -33,12 +33,11 @@ export async function createThread(
       booking_id: input.booking_id,
       participant_ids: input.participant_ids,
     },
-    'Thread',
   );
 }
 
 export async function getThread(supabase: SupabaseClient, threadId: string, userId: string): Promise<MessageThread> {
-  const thread = await fetchOne<MessageThread>(supabase, 'message_threads', { id: threadId }, 'Thread');
+  const thread = await fetchOne<MessageThread>(supabase, 'message_threads', { id: threadId });
   requireThreadParticipant(thread, userId);
   return thread;
 }
@@ -63,7 +62,7 @@ export async function sendMessage(
   senderId: string,
   content: string,
 ): Promise<Message> {
-  const thread = await fetchOne<MessageThread>(supabase, 'message_threads', { id: threadId }, 'Thread');
+  const thread = await fetchOne<MessageThread>(supabase, 'message_threads', { id: threadId });
 
   if (!thread.participant_ids.includes(senderId)) {
     throw new ForbiddenError('Not a participant in this thread');
@@ -77,7 +76,6 @@ export async function sendMessage(
       sender_id: senderId,
       content,
     },
-    'Message',
   );
 
   // Update thread's last_message_at
@@ -106,7 +104,7 @@ export async function getMessages(
   limit = DEFAULT_MESSAGE_LIMIT,
   before?: string,
 ): Promise<Message[]> {
-  const thread = await fetchOne<MessageThread>(supabase, 'message_threads', { id: threadId }, 'Thread');
+  const thread = await fetchOne<MessageThread>(supabase, 'message_threads', { id: threadId });
   requireThreadParticipant(thread, userId);
 
   let query = supabase
@@ -134,7 +132,7 @@ export async function markMessagesAsRead(
   threadId: string,
   userId: string,
 ): Promise<void> {
-  const thread = await fetchOne<MessageThread>(supabase, 'message_threads', { id: threadId }, 'Thread');
+  const thread = await fetchOne<MessageThread>(supabase, 'message_threads', { id: threadId });
   requireThreadParticipant(thread, userId);
 
   await supabase

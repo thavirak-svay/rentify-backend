@@ -13,9 +13,9 @@ export {
   publicReviewsRowSchema as ReviewSchema,
   publicSearchListingsReturnsSchema as SearchListingsResultSchema,
   publicTransactionsRowSchema as TransactionSchema,
-} from './db-schemas';
+} from '@/generated/db-schemas';
 
-import { publicListingMediaRowSchema, publicListingsRowSchema, publicSearchListingsReturnsSchema } from './db-schemas';
+import { publicListingMediaRowSchema, publicListingsRowSchema, publicSearchListingsReturnsSchema } from '@/generated/db-schemas';
 
 export const ListingWithMediaSchema = publicListingsRowSchema.extend({
   media: z.array(publicListingMediaRowSchema),

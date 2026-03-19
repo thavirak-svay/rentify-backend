@@ -8,6 +8,7 @@ import { bearerAuth, dataResponse, jsonContent, successResponse, uuidParam } fro
 import { optionalAuth } from '@/shared/middleware/auth';
 import type { Variables } from '@/shared/types/context';
 import * as mediaService from './service';
+import { confirmUploadSchema, createUploadUrlSchema, listingIdParamSchema } from './validation';
 
 const media = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -21,7 +22,7 @@ media.post(
     security: bearerAuth,
     responses: { 200: dataResponse(UploadUrlResponseSchema, 'Upload URL created') },
   }),
-  validator('json', z.object({ file_name: z.string(), content_type: z.string().optional() })),
+  validator('json', createUploadUrlSchema),
   async (c) => {
     const supabaseAdmin = c.get('supabaseAdmin');
     const userId = c.get('userId');
@@ -43,8 +44,8 @@ media.post(
       200: jsonContent(z.object({ data: z.object({ id: z.uuid(), url: z.url() }) }), 'Upload confirmed'),
     },
   }),
-  validator('param', z.object({ listingId: z.uuid() })),
-  validator('json', z.object({ path: z.string(), is_primary: z.boolean().optional() })),
+  validator('param', listingIdParamSchema),
+  validator('json', confirmUploadSchema),
   async (c) => {
     const supabaseAdmin = c.get('supabaseAdmin');
     const userId = c.get('userId');
