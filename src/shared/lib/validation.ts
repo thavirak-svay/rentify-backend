@@ -1,16 +1,20 @@
-/**
- * Shared Validators
- * Zod schemas for input validation
- */
-
 import { z } from 'zod';
+import { COUNTRY_CODE_LENGTH } from '@/constants/user';
+import {
+  CURRENCY_CODE_LENGTH,
+  MAX_DESCRIPTION_LENGTH,
+  MAX_TITLE_LENGTH,
+  MIN_TITLE_LENGTH,
+} from '@/constants/listing';
+import { DEFAULT_CURRENCY } from '@/constants/payment';
+import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '@/constants/api';
 import { ValidationError } from './errors';
 
-export const uuidSchema = z.string().uuid();
+export const uuidSchema = z.uuid();
 
 export const paginationSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  limit: z.coerce.number().int().min(1).max(MAX_PAGE_LIMIT).default(DEFAULT_PAGE_LIMIT),
 });
 
 export const coordinatesSchema = z.object({
@@ -26,7 +30,7 @@ export const listQuerySchema = z.object({
   max_price: z.coerce.number().int().min(0).optional(),
   sort: z.enum(['relevance', 'price_asc', 'price_desc', 'rating', 'newest']).default('relevance'),
   page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  limit: z.coerce.number().int().min(1).max(MAX_PAGE_LIMIT).default(DEFAULT_PAGE_LIMIT),
 });
 
 export function validate<T>(schema: z.ZodSchema<T>, data: unknown): T {
@@ -42,18 +46,18 @@ export type PaginationInput = z.infer<typeof paginationSchema>;
 export type ListQueryInput = z.infer<typeof listQuerySchema>;
 
 export const createListingSchema = z.object({
-  title: z.string().min(5).max(200),
-  description: z.string().max(2000).optional(),
-  category_id: z.string().uuid().optional(),
+  title: z.string().min(MIN_TITLE_LENGTH).max(MAX_TITLE_LENGTH),
+  description: z.string().max(MAX_DESCRIPTION_LENGTH).optional(),
+  category_id: z.uuid().optional(),
   type: z.enum(['offer', 'request']).default('offer'),
   price_hourly: z.number().int().positive().optional(),
   price_daily: z.number().int().positive(),
   price_weekly: z.number().int().positive().optional(),
   deposit_amount: z.number().int().min(0).default(0),
-  currency: z.string().length(3).default('USD'),
+  currency: z.string().length(CURRENCY_CODE_LENGTH).default(DEFAULT_CURRENCY),
   address_text: z.string().optional(),
   address_city: z.string().optional(),
-  address_country: z.string().length(2).optional(),
+  address_country: z.string().length(COUNTRY_CODE_LENGTH).optional(),
   location: z
     .object({
       lat: z.number().min(-90).max(90),
@@ -71,7 +75,7 @@ export const createListingSchema = z.object({
 export const updateListingSchema = createListingSchema.partial();
 
 export const listingIdSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
 });
 
 export type CreateListingInput = z.infer<typeof createListingSchema>;

@@ -1,11 +1,5 @@
-import {
-  DELIVERY_METHOD,
-  type DeliveryMethodType,
-  OWNER_COMMISSION_RATE,
-  PROTECTION_RATES,
-  type ProtectionPlan,
-  SERVICE_FEE_RATE,
-} from '@/constants';
+import { DAYS_PER_WEEK, HOURS_PER_DAY, HOURLY_THRESHOLD_HOURS, MS_PER_HOUR, OWNER_COMMISSION_RATE, PROTECTION_RATES, type ProtectionPlan, SERVICE_FEE_RATE, WEEKLY_THRESHOLD_DAYS } from '@/constants/pricing';
+import { DELIVERY_METHOD, type DeliveryMethodType } from '@/constants/payment';
 import { ValidationError } from '@/shared/lib/errors';
 
 export interface PricingInput {
@@ -43,7 +37,7 @@ export class HourlyPricingStrategy implements PricingStrategy {
   readonly name = 'hourly';
 
   canHandle(input: PricingInput, hours: number): boolean {
-    return hours < 8 && input.priceHourly !== null;
+    return hours < HOURLY_THRESHOLD_HOURS && input.priceHourly !== null;
   }
 
   calculate(input: PricingInput, hours: number): number {
@@ -74,18 +68,18 @@ export class WeeklyPricingStrategy implements PricingStrategy {
   readonly name = 'weekly';
 
   canHandle(input: PricingInput, _hours: number, days: number): boolean {
-    return input.priceWeekly !== null && days >= 5;
+    return input.priceWeekly !== null && days >= WEEKLY_THRESHOLD_DAYS;
   }
 
   calculate(input: PricingInput, _hours: number, days: number): number {
     if (!input.priceWeekly) return input.priceDaily * days;
 
-    const weeks = Math.floor(days / 7);
-    const remainingDays = days % 7;
+    const weeks = Math.floor(days / DAYS_PER_WEEK);
+    const remainingDays = days % DAYS_PER_WEEK;
     const weeklyTotal = weeks * input.priceWeekly + remainingDays * input.priceDaily;
 
     // For 7+ days, compare weekly rate vs daily
-    if (days >= 7) {
+    if (days >= DAYS_PER_WEEK) {
       return Math.min(weeklyTotal, input.priceDaily * days);
     }
 
@@ -119,8 +113,8 @@ export class PricingCalculator {
     if (endTime.getTime() <= startTime.getTime()) {
       throw new ValidationError('End time must be after start time');
     }
-    const hours = Math.ceil((endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60));
-    return { hours: Math.max(1, hours), days: Math.ceil(hours / 24) };
+    const hours = Math.ceil((endTime.getTime() - startTime.getTime()) / MS_PER_HOUR);
+    return { hours: Math.max(1, hours), days: Math.ceil(hours / HOURS_PER_DAY) };
   }
 
   /**
@@ -167,3 +161,13 @@ export class PricingCalculator {
 }
 
 export const pricingCalculator = new PricingCalculator();
+
+import { PricingInputSchema } from './validation';
+
+export function calculatePricing(input: PricingInput): PricingResult {
+  const result = PricingInputSchema.safeParse(input);
+  if (!result.success) {
+    throw new ValidationError(`Invalid pricing input: ${result.error.issues.map((i) => i.message).join('; ')}`);
+  }
+  return pricingCalculator.calculate(input);
+}

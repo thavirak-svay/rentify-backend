@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Env } from '@/config/env';
-import { TRANSACTION_STATUS } from '@/constants';
+import { TRANSACTION_STATUS } from '@/constants/payment';
 
 export interface MockPayWayBooking {
   id: string;

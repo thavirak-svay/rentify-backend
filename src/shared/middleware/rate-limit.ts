@@ -1,6 +1,13 @@
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import type { Env } from '@/config/env';
+import {
+  API_RATE_LIMIT_MAX,
+  AUTH_RATE_LIMIT_MAX,
+  RATE_LIMIT_WINDOW_MS,
+  SECONDS_PER_MINUTE,
+  WRITE_RATE_LIMIT_MAX,
+} from '@/constants/api';
 import { AppError } from '@/shared/lib/errors';
 import type { Variables } from '@/shared/types/context';
 
@@ -36,7 +43,7 @@ export function rateLimit(options: {
     };
 
     if (store[key].count >= options.maxRequests) {
-      const retryAfter = Math.ceil((store[key].resetTime - now) / 1000);
+      const retryAfter = Math.ceil((store[key].resetTime - now) / SECONDS_PER_MINUTE);
       c.header('Retry-After', retryAfter.toString());
       throw new AppError('Too many requests, please try again later', 429, 'RATE_LIMIT_EXCEEDED');
     }
@@ -52,8 +59,8 @@ export function rateLimit(options: {
 }
 
 export const authRateLimit = rateLimit({
-  windowMs: 60 * 1000,
-  maxRequests: 5,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  maxRequests: AUTH_RATE_LIMIT_MAX,
   keyGenerator: (c) => {
     const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
     const path = c.req.path;
@@ -62,8 +69,8 @@ export const authRateLimit = rateLimit({
 });
 
 export const apiRateLimit = rateLimit({
-  windowMs: 60 * 1000,
-  maxRequests: 100,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  maxRequests: API_RATE_LIMIT_MAX,
   keyGenerator: (c) => {
     const userId = c.get('userId') || c.req.header('x-forwarded-for') || 'anonymous';
     return `api:${userId}`;
@@ -71,8 +78,8 @@ export const apiRateLimit = rateLimit({
 });
 
 export const writeRateLimit = rateLimit({
-  windowMs: 60 * 1000,
-  maxRequests: 10,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  maxRequests: WRITE_RATE_LIMIT_MAX,
   keyGenerator: (c) => {
     const userId = c.get('userId');
     if (!userId) return 'anonymous';

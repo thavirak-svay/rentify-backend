@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 import { z } from 'zod';
 import type { Env } from '@/config/env';
+import { DEFAULT_MESSAGE_LIMIT } from '@/constants/message';
+import { MAX_PAGE_LIMIT } from '@/constants/api';
 import { NotificationSchema } from '@/shared/lib/api-schemas';
 import { AuthenticationError } from '@/shared/lib/errors';
 import { bearerAuth, dataArrayResponse, jsonContent, successResponse, uuidParam } from '@/shared/lib/openapi';
@@ -24,7 +26,7 @@ notifications.get(
   validator(
     'query',
     z.object({
-      limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+      limit: z.coerce.number().int().min(1).max(MAX_PAGE_LIMIT).optional().default(DEFAULT_MESSAGE_LIMIT),
       unread: z.enum(['true', 'false']).optional(),
     }),
   ),

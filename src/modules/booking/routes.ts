@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 import { z } from 'zod';
 import type { Env } from '@/config/env';
-import { DELIVERY_METHOD, PROTECTION_PLAN } from '@/constants';
+import { DELIVERY_METHOD, PROTECTION_PLAN } from '@/constants/payment';
 import { BookingSchema } from '@/shared/lib/api-schemas';
 import { AuthenticationError } from '@/shared/lib/errors';
 import { bearerAuth, createDataResponseFactory, dataArrayResponse, jsonContent, uuidParam } from '@/shared/lib/openapi';
@@ -16,12 +16,12 @@ const tag = 'Bookings';
 const bookingResponse = createDataResponseFactory(BookingSchema);
 
 const createBookingSchema = z.object({
-  listing_id: z.string().uuid(),
-  start_time: z.string().datetime(),
-  end_time: z.string().datetime(),
-  delivery_method: z.nativeEnum(DELIVERY_METHOD).optional(),
+  listing_id: z.uuid(),
+  start_time: z.iso.datetime(),
+  end_time: z.iso.datetime(),
+  delivery_method: z.enum(DELIVERY_METHOD).optional(),
   delivery_address: z.string().optional(),
-  protection_plan: z.nativeEnum(PROTECTION_PLAN).optional(),
+  protection_plan: z.enum(PROTECTION_PLAN).optional(),
 });
 
 const cancelBookingSchema = z.object({ reason: z.string().optional() });

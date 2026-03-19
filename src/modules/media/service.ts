@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { DatabaseError, ForbiddenError, NotFoundError, sanitizeFileName } from '@/shared/lib';
+import { DatabaseError, ForbiddenError, NotFoundError } from '@/shared/lib/errors';
+import { sanitizeFileName } from '@/shared/lib/utils';
 
 export async function createUploadUrl(
   supabaseAdmin: SupabaseClient,

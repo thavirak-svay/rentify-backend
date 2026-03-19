@@ -1,18 +1,20 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '@/constants/api';
+import { DEFAULT_SEARCH_RADIUS_KM } from '@/constants/search';
 import { DatabaseError, ValidationError } from '@/shared/lib/errors';
 
 const searchParamsSchema = z.object({
   q: z.string().optional(),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
-  radius: z.number().default(25),
+  radius: z.number().default(DEFAULT_SEARCH_RADIUS_KM),
   category: z.string().optional(),
   type: z.enum(['offer', 'request']).optional(),
   min_price: z.number().optional(),
   max_price: z.number().optional(),
   sort: z.enum(['relevance', 'price_asc', 'price_desc', 'rating', 'newest']).default('relevance'),
-  limit: z.number().min(1).max(100).default(20),
+  limit: z.number().min(1).max(MAX_PAGE_LIMIT).default(DEFAULT_PAGE_LIMIT),
   offset: z.number().min(0).default(0),
 });
 

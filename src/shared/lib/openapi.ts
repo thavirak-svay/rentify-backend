@@ -25,7 +25,7 @@ export function successResponse(description: string) {
 
 export const bearerAuth = [{ Bearer: [] as string[] }];
 
-export const uuidParam = z.object({ id: z.string().uuid() });
+export const uuidParam = z.object({ id: z.uuid() });
 
 /** Create a data response factory for a specific schema (DRY helper) */
 export function createDataResponseFactory<T extends z.ZodType>(schema: T) {

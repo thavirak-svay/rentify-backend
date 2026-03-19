@@ -16,3 +16,6 @@ export const OWNER_COMMISSION_RATE = 0.06;
 
 export const HOURLY_THRESHOLD_HOURS = 8;
 export const WEEKLY_THRESHOLD_DAYS = 5;
+
+export const DAYS_PER_WEEK = 7;
+export const HOURS_PER_DAY = 24;

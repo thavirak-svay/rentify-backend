@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 import { z } from 'zod';
 import type { Env } from '@/config/env';
-import { TRANSACTION_STATUS } from '@/constants';
+import { TRANSACTION_STATUS } from '@/constants/payment';
 import { dataResponse, successResponse } from '@/shared/lib/openapi';
 import type { Variables } from '@/shared/types/context';
 import * as mockService from './service';

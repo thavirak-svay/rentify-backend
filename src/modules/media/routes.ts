@@ -40,10 +40,10 @@ media.post(
     summary: 'Confirm media upload',
     security: bearerAuth,
     responses: {
-      200: jsonContent(z.object({ data: z.object({ id: z.string().uuid(), url: z.string().url() }) }), 'Upload confirmed'),
+      200: jsonContent(z.object({ data: z.object({ id: z.uuid(), url: z.url() }) }), 'Upload confirmed'),
     },
   }),
-  validator('param', z.object({ listingId: z.string().uuid() })),
+  validator('param', z.object({ listingId: z.uuid() })),
   validator('json', z.object({ path: z.string(), is_primary: z.boolean().optional() })),
   async (c) => {
     const supabaseAdmin = c.get('supabaseAdmin');

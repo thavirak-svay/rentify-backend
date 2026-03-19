@@ -1,15 +1,15 @@
 import { z } from 'zod';
 
 export const envSchema = z.object({
-  SUPABASE_URL: z.string().url(),
+  SUPABASE_URL: z.url(),
   SUPABASE_PUBLISHABLE_KEY: z.string(),
   SUPABASE_SECRET_KEY: z.string(),
   PAYWAY_MERCHANT_ID: z.string(),
   PAYWAY_API_KEY: z.string(),
   PAYWAY_MERCHANT_AUTH: z.string(),
-  PAYWAY_BASE_URL: z.string().url(),
-  PAYWAY_CALLBACK_URL: z.string().url(),
-  APP_URL: z.string().url(),
+  PAYWAY_BASE_URL: z.url(),
+  PAYWAY_CALLBACK_URL: z.url(),
+  APP_URL: z.url(),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   RESEND_API_KEY: z.string().optional(),
   SENTRY_DSN: z.string().optional(),

@@ -1,12 +1,7 @@
-/**
- * Payment Service
- * Business logic for payment operations
- */
-
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Env } from '@/config/env';
-import { TRANSACTION_STATUS } from '@/constants';
-import { checkTransaction, refundPayment as refundPayWayPayment, verifyCallbackHash } from '@/modules/mock';
+import { TRANSACTION_STATUS } from '@/constants/payment';
+import { checkTransaction, refundPayment as refundPayWayPayment, verifyCallbackHash } from '@/modules/mock/service';
 import { DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '@/shared/lib/errors';
 import { log } from '@/shared/middleware/logger';
 

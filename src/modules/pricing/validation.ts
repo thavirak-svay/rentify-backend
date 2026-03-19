@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { DELIVERY_METHOD, MAX_RENTAL_DAYS, MS_PER_HOUR, PROTECTION_PLAN } from '@/constants';
+import { MAX_RENTAL_DAYS, MS_PER_HOUR, SERVICE_FEE_RATE } from '@/constants/pricing';
+import { DELIVERY_METHOD, PROTECTION_PLAN } from '@/constants/payment';
 
 export const PricingInputSchema = z
   .object({
@@ -9,10 +10,10 @@ export const PricingInputSchema = z
     priceDaily: z.number().int().min(1),
     priceWeekly: z.number().int().min(1).nullable(),
     depositAmount: z.number().int().min(0).default(0),
-    deliveryMethod: z.nativeEnum(DELIVERY_METHOD),
+    deliveryMethod: z.enum(DELIVERY_METHOD),
     deliveryFee: z.number().int().min(0).default(0),
-    protectionPlan: z.nativeEnum(PROTECTION_PLAN),
-    serviceFeeRate: z.number().min(0).max(1).default(0.12),
+    protectionPlan: z.enum(PROTECTION_PLAN),
+    serviceFeeRate: z.number().min(0).max(1).default(SERVICE_FEE_RATE),
   })
   .refine((d) => d.endTime > d.startTime, {
     message: 'endTime must be after startTime',

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 import { z } from 'zod';
 import type { Env } from '@/config/env';
+import { MAX_COMMENT_LENGTH, MAX_RATING, MIN_RATING } from '@/constants/review';
 import { ReviewSchema } from '@/shared/lib/api-schemas';
 import { AuthenticationError } from '@/shared/lib/errors';
 import { bearerAuth, dataArrayResponse, dataResponse } from '@/shared/lib/openapi';
@@ -14,9 +15,9 @@ const reviews = new Hono<{ Bindings: Env; Variables: Variables }>();
 reviews.use('*', optionalAuth);
 
 const createReviewSchema = z.object({
-  booking_id: z.string().uuid(),
-  rating: z.number().int().min(1).max(5),
-  comment: z.string().max(1000).optional(),
+  booking_id: z.uuid(),
+  rating: z.number().int().min(MIN_RATING).max(MAX_RATING),
+  comment: z.string().max(MAX_COMMENT_LENGTH).optional(),
 });
 
 reviews.post(
@@ -46,7 +47,7 @@ reviews.get(
     summary: 'Get reviews for a listing',
     responses: { 200: dataArrayResponse(ReviewSchema, 'List of reviews') },
   }),
-  validator('param', z.object({ listingId: z.string().uuid() })),
+  validator('param', z.object({ listingId: z.uuid() })),
   async (c) => {
     const supabaseAdmin = c.get('supabaseAdmin');
     const { listingId } = c.req.valid('param');
@@ -62,7 +63,7 @@ reviews.get(
     summary: 'Get reviews for a user',
     responses: { 200: dataArrayResponse(ReviewSchema, 'List of reviews') },
   }),
-  validator('param', z.object({ userId: z.string().uuid() })),
+  validator('param', z.object({ userId: z.uuid() })),
   async (c) => {
     const supabaseAdmin = c.get('supabaseAdmin');
     const { userId } = c.req.valid('param');

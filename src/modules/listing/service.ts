@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { BOOKING_STATUS, LISTING_STATUS } from '@/constants';
+import { BOOKING_STATUS } from '@/constants/booking';
+import { LISTING_STATUS } from '@/constants/listing';
 import { ConflictError, DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '@/shared/lib/errors';
 import type { CreateListingInput, UpdateListingInput } from '@/shared/lib/validation';
 import type { Listing, ListingMedia } from '@/shared/types/database';

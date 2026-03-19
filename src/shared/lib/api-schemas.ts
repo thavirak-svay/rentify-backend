@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { IDENTITY_STATUS } from '@/constants';
+import { IDENTITY_STATUS } from '@/constants/payment';
 
 export {
   publicBookingsRowSchema as BookingSchema,
@@ -29,14 +29,14 @@ export const PublicProfileSchema = z.object({
   rating_avg: z.number(),
   rating_count: z.number(),
   completed_rentals: z.number(),
-  identity_status: z.nativeEnum(IDENTITY_STATUS),
+  identity_status: z.enum(IDENTITY_STATUS),
   created_at: z.string(),
 });
 
 export const SearchListingSchema = publicSearchListingsReturnsSchema.element;
 
 export const UploadUrlResponseSchema = z.object({
-  upload_url: z.string().url(),
+  upload_url: z.url(),
   path: z.string(),
-  public_url: z.string().url(),
+  public_url: z.url(),
 });

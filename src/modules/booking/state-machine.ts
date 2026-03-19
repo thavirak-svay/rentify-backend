@@ -1,4 +1,4 @@
-import { BOOKING_STATUS, type BookingStatus, SYSTEM_ONLY_STATUSES, VALID_TRANSITIONS } from '@/constants';
+import { BOOKING_STATUS, type BookingStatus, SYSTEM_ONLY_STATUSES, VALID_TRANSITIONS } from '@/constants/booking';
 export type { BookingStatus };
 
 import { BookingTransitionError, ForbiddenError } from '@/shared/lib/errors';

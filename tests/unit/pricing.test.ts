@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { calculatePricing } from "../../src/modules/pricing";
+import { calculatePricing } from "../../src/modules/pricing/calculator";
 import { ValidationError } from "../../src/shared/lib/errors";
 
 describe("Unit: Pricing Engine", () => {

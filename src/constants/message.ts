@@ -1,0 +1,4 @@
+export const DEFAULT_MESSAGE_LIMIT = 50;
+export const MAX_MESSAGE_LENGTH = 5000;
+export const MAX_MESSAGE_PREVIEW_LENGTH = 100;
+export const MIN_THREAD_PARTICIPANTS = 2;

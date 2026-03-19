@@ -8,7 +8,7 @@ import {
   PAYWAY_ENDPOINTS,
   PAYWAY_SUCCESS_CODE,
   PREAUTH_LIFETIME_MINUTES,
-} from '@/constants';
+} from '@/constants/payment';
 import { ExternalServiceError } from '@/shared/lib/errors';
 import type {
   CancelResult,

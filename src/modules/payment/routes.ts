@@ -49,7 +49,7 @@ payments.get(
     summary: 'Get transaction status',
     responses: { 200: dataResponse(transactionStatusSchema, 'Transaction status') },
   }),
-  validator('param', z.object({ id: z.string().uuid() })),
+  validator('param', z.object({ id: z.uuid() })),
   async (c) => {
     const supabaseAdmin = c.get('supabaseAdmin');
     const env = c.get('env');
@@ -69,7 +69,7 @@ payments.post(
       200: jsonContent(z.object({ data: z.object({ success: z.boolean() }) }), 'Refund processed'),
     },
   }),
-  validator('param', z.object({ id: z.string().uuid() })),
+  validator('param', z.object({ id: z.uuid() })),
   async (c) => {
     const supabaseAdmin = c.get('supabaseAdmin');
     const env = c.get('env');

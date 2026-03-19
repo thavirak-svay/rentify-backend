@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { DEFAULT_MESSAGE_LIMIT, MAX_MESSAGE_PREVIEW_LENGTH } from '@/constants/message';
 import { DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '@/shared/lib/errors';
 import type { Message, MessageThread } from '@/shared/types/database';
 
@@ -96,7 +97,7 @@ export function createMessageRepository(supabaseAdmin: SupabaseClient): MessageR
     return message;
   }
 
-  async function findMessages(threadId: string, userId: string, limit = 50, before?: string): Promise<Message[]> {
+  async function findMessages(threadId: string, userId: string, limit = DEFAULT_MESSAGE_LIMIT, before?: string): Promise<Message[]> {
     const thread = await findThreadById(threadId);
 
     if (!thread.participant_ids.includes(userId)) {
@@ -150,7 +151,7 @@ async function notifyParticipants(supabaseAdmin: SupabaseClient, participantIds:
     user_id: participantId,
     type: 'message.new',
     title: `New message from ${sender?.display_name || 'Someone'}`,
-    body: message.content.slice(0, 100),
+    body: message.content.slice(0, MAX_MESSAGE_PREVIEW_LENGTH),
     data: { thread_id: message.thread_id, message_id: message.id },
   }));
 
@@ -179,7 +180,7 @@ export async function sendMessage(supabaseAdmin: SupabaseClient, threadId: strin
   return await createMessageRepository(supabaseAdmin).sendMessage(threadId, senderId, content);
 }
 
-export async function getMessages(supabaseAdmin: SupabaseClient, threadId: string, userId: string, limit = 50, before?: string): Promise<Message[]> {
+export async function getMessages(supabaseAdmin: SupabaseClient, threadId: string, userId: string, limit = DEFAULT_MESSAGE_LIMIT, before?: string): Promise<Message[]> {
   return await createMessageRepository(supabaseAdmin).findMessages(threadId, userId, limit, before);
 }
 

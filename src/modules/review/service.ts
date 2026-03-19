@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { BOOKING_STATUS } from '@/constants';
+import { BOOKING_STATUS } from '@/constants/booking';
+import { MAX_RATING, MIN_RATING } from '@/constants/review';
 import { DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '@/shared/lib/errors';
 import type { Booking, Review } from '@/shared/types/database';
 
@@ -76,9 +77,9 @@ export function createReviewRepository(supabaseAdmin: SupabaseClient): ReviewRep
   }
 
   async function create(input: CreateReviewInput, reviewerId: string): Promise<Review> {
-    if (input.rating < 1 || input.rating > 5) {
-      throw new ValidationError('Rating must be between 1 and 5');
-    }
+    if (input.rating < MIN_RATING || input.rating > MAX_RATING) {
+    throw new ValidationError(`Rating must be between ${MIN_RATING} and ${MAX_RATING}`);
+  }
 
     const { booking, targetId } = await validateBookingForReview(supabaseAdmin, input.booking_id, reviewerId);
 

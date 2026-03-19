@@ -6,7 +6,10 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**/src/**/*.ts", "**/src/**/*.js"],
+    "includes": [
+      "**/src/**/*.ts",
+      "**/src/**/*.js"
+    ],
     "ignoreUnknown": false
   },
   "formatter": {
@@ -101,31 +104,43 @@
                 "selector": {
                   "kind": "function"
                 },
-                "formats": ["camelCase"]
+                "formats": [
+                  "camelCase"
+                ]
               },
               {
                 "selector": {
                   "kind": "variable"
                 },
-                "formats": ["camelCase"]
+                "formats": [
+                  "camelCase"
+                ]
               },
               {
                 "selector": {
                   "kind": "objectLiteralProperty"
                 },
-                "formats": ["camelCase", "snake_case"]
+                "formats": [
+                  "camelCase",
+                  "snake_case"
+                ]
               },
               {
                 "selector": {
                   "kind": "classMember"
                 },
-                "formats": ["camelCase", "snake_case"]
+                "formats": [
+                  "camelCase",
+                  "snake_case"
+                ]
               },
               {
                 "selector": {
                   "kind": "typeLike"
                 },
-                "formats": ["PascalCase"]
+                "formats": [
+                  "PascalCase"
+                ]
               }
             ]
           }
@@ -157,7 +172,10 @@
   },
   "overrides": [
     {
-      "includes": ["**/*.test.ts", "**/*.spec.ts"],
+      "includes": [
+        "**/*.test.ts",
+        "**/*.spec.ts"
+      ],
       "linter": {
         "rules": {
           "suspicious": {
@@ -171,13 +189,18 @@
       }
     },
     {
-      "includes": ["src/shared/types/database.ts", "src/shared/lib/db-schemas.ts"],
+      "includes": [
+        "src/shared/types/database.ts",
+        "src/shared/lib/db-schemas.ts"
+      ],
       "linter": {
         "enabled": false
       }
     },
     {
-      "includes": ["src/constants/**/*.ts"],
+      "includes": [
+        "src/constants/**/*.ts"
+      ],
       "linter": {
         "rules": {
           "style": {
@@ -190,13 +213,20 @@
                     "selector": {
                       "kind": "variable"
                     },
-                    "formats": ["CONSTANT_CASE"]
+                    "formats": [
+                      "CONSTANT_CASE"
+                    ]
                   },
                   {
                     "selector": {
                       "kind": "objectLiteralProperty"
                     },
-                    "formats": ["camelCase", "CONSTANT_CASE", "snake_case", "PascalCase"]
+                    "formats": [
+                      "camelCase",
+                      "CONSTANT_CASE",
+                      "snake_case",
+                      "PascalCase"
+                    ]
                   }
                 ]
               }
@@ -206,7 +236,9 @@
       }
     },
     {
-      "includes": ["src/config/env.ts"],
+      "includes": [
+        "src/config/env.ts"
+      ],
       "linter": {
         "rules": {
           "style": {
@@ -219,7 +251,11 @@
                     "selector": {
                       "kind": "objectLiteralProperty"
                     },
-                    "formats": ["camelCase", "CONSTANT_CASE", "snake_case"]
+                    "formats": [
+                      "camelCase",
+                      "CONSTANT_CASE",
+                      "snake_case"
+                    ]
                   }
                 ]
               }
@@ -229,21 +265,14 @@
       }
     },
     {
-      "includes": ["src/modules/mock/routes.ts", "src/modules/booking/service.ts"],
+      "includes": [
+        "src/modules/mock/routes.ts",
+        "src/modules/booking/service.ts"
+      ],
       "linter": {
         "rules": {
           "security": {
             "noSecrets": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["src/modules/booking/service.ts", "src/modules/compensation/service.ts", "src/modules/review/service.ts"],
-      "linter": {
-        "rules": {
-          "complexity": {
-            "noExcessiveCognitiveComplexity": "warn"
           }
         }
       }

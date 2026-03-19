@@ -1,8 +1,3 @@
-/**
- * Auth Middleware
- * Authentication middlewares for Supabase JWT tokens
- */
-
 import type { Context, Next } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import type { Env } from '@/config/env';

@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { DEFAULT_MESSAGE_LIMIT } from '@/constants/message';
 import { DatabaseError } from '@/shared/lib/errors';
 import type { Notification } from '@/shared/types/database';
 
-export async function getUserNotifications(supabaseAdmin: SupabaseClient, userId: string, limit = 50, unreadOnly = false): Promise<Notification[]> {
+export async function getUserNotifications(supabaseAdmin: SupabaseClient, userId: string, limit = DEFAULT_MESSAGE_LIMIT, unreadOnly = false): Promise<Notification[]> {
   let query = supabaseAdmin.from('notifications').select().eq('user_id', userId).order('created_at', { ascending: false }).limit(limit);
 
   if (unreadOnly) {

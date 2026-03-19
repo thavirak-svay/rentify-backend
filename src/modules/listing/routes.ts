@@ -3,7 +3,7 @@ import { describeRoute, validator } from 'hono-openapi';
 
 import { z } from 'zod';
 import type { Env } from '@/config/env';
-import { LISTING_STATUS } from '@/constants';
+import { LISTING_STATUS } from '@/constants/listing';
 import { ListingSchema, ListingWithMediaSchema } from '@/shared/lib/api-schemas';
 import { AuthenticationError } from '@/shared/lib/errors';
 import { bearerAuth, dataArrayResponse, dataResponse, successResponse, uuidParam } from '@/shared/lib/openapi';

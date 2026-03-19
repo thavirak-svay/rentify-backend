@@ -1,16 +1,23 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import {
+  COUNTRY_CODE_LENGTH,
+  MAX_BANK_ACCOUNT_LENGTH,
+  MAX_BIO_LENGTH,
+  MAX_DISPLAY_NAME_LENGTH,
+  MIN_DISPLAY_NAME_LENGTH,
+} from '@/constants/user';
 import { DatabaseError, NotFoundError } from '@/shared/lib/errors';
 import type { Profile } from '@/shared/types/database';
 
 export const updateProfileSchema = z.object({
-  display_name: z.string().min(1).max(100).optional(),
+  display_name: z.string().min(MIN_DISPLAY_NAME_LENGTH).max(MAX_DISPLAY_NAME_LENGTH).optional(),
   avatar_url: z.url().optional(),
-  bio: z.string().max(500).optional(),
-  address_city: z.string().max(100).optional(),
-  address_country: z.string().length(2).optional(),
-  bank_name: z.string().max(100).optional(),
-  bank_account_masked: z.string().max(20).optional(),
+  bio: z.string().max(MAX_BIO_LENGTH).optional(),
+  address_city: z.string().max(MAX_DISPLAY_NAME_LENGTH).optional(),
+  address_country: z.string().length(COUNTRY_CODE_LENGTH).optional(),
+  bank_name: z.string().max(MAX_DISPLAY_NAME_LENGTH).optional(),
+  bank_account_masked: z.string().max(MAX_BANK_ACCOUNT_LENGTH).optional(),
   payway_beneficiary_id: z.string().optional(),
 });
 

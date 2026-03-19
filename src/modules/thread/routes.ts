@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { describeRoute, validator } from 'hono-openapi';
 import { z } from 'zod';
 import type { Env } from '@/config/env';
+import { DEFAULT_MESSAGE_LIMIT, MAX_MESSAGE_LENGTH, MIN_THREAD_PARTICIPANTS } from '@/constants/message';
+import { MAX_PAGE_LIMIT } from '@/constants/api';
 import { MessageSchema, MessageThreadSchema } from '@/shared/lib/api-schemas';
 import { AuthenticationError } from '@/shared/lib/errors';
 import { bearerAuth, dataArrayResponse, dataResponse, successResponse, uuidParam } from '@/shared/lib/openapi';
@@ -14,9 +16,9 @@ const threads = new Hono<{ Bindings: Env; Variables: Variables }>();
 threads.use('*', optionalAuth);
 
 const createThreadSchema = z.object({
-  listing_id: z.string().uuid().optional(),
-  booking_id: z.string().uuid().optional(),
-  participant_ids: z.array(z.string().uuid()).min(2),
+  listing_id: z.uuid().optional(),
+  booking_id: z.uuid().optional(),
+  participant_ids: z.array(z.uuid()).min(MIN_THREAD_PARTICIPANTS),
 });
 
 threads.post(
@@ -89,8 +91,8 @@ threads.get(
   validator(
     'query',
     z.object({
-      limit: z.coerce.number().int().min(1).max(100).optional().default(50),
-      before: z.string().datetime().optional(),
+      limit: z.coerce.number().int().min(1).max(MAX_PAGE_LIMIT).optional().default(DEFAULT_MESSAGE_LIMIT),
+      before: z.iso.datetime().optional(),
     }),
   ),
   async (c) => {
@@ -114,7 +116,7 @@ threads.post(
     responses: { 201: dataResponse(MessageSchema, 'Message sent successfully') },
   }),
   validator('param', uuidParam),
-  validator('json', z.object({ content: z.string().min(1).max(5000) })),
+  validator('json', z.object({ content: z.string().min(1).max(MAX_MESSAGE_LENGTH) })),
   async (c) => {
     const supabaseAdmin = c.get('supabaseAdmin');
     const userId = c.get('userId');

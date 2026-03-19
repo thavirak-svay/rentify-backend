@@ -1,12 +1,8 @@
-/**
- * Compensation Module - Service
- * Handles compensation queue for failed operations
- */
-
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Env } from '@/config/env';
-import { BOOKING_STATUS, COMPENSATION_STATUS, COMPENSATION_TYPES, type CompensationType } from '@/constants';
-import { getPaymentGateway } from '@/modules/payment';
+import { BOOKING_STATUS } from '@/constants/booking';
+import { COMPENSATION_STATUS, COMPENSATION_TYPES, type CompensationType } from '@/constants/compensation';
+import { getPaymentGateway } from '@/modules/payment/factory';
 
 interface CompensationPayload {
   payway_tran_id?: string;
